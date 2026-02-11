@@ -1,0 +1,7 @@
+node_modules/
+dist/
+geo-output/
+storage/
+.cache/
+.env
+.claude/

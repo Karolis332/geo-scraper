@@ -1,0 +1,48 @@
+{
+  "name": "geo-scraper",
+  "version": "1.0.0",
+  "description": "Scrape any website and generate all GEO (Generative Engine Optimization) compliance files for AI/LLM crawlers",
+  "type": "module",
+  "bin": {
+    "geo-scraper": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc && node -e \"require('fs').cpSync('src/web/public','dist/web/public',{recursive:true})\"",
+    "start": "node dist/cli.js",
+    "dev": "tsx src/cli.ts"
+  },
+  "keywords": [
+    "geo",
+    "seo",
+    "llms-txt",
+    "ai-crawlers",
+    "robots-txt",
+    "structured-data",
+    "scraper"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.74.0",
+    "@google/genai": "^1.40.0",
+    "better-sqlite3": "^12.6.2",
+    "chalk": "^5.4.0",
+    "cheerio": "^1.0.0",
+    "commander": "^13.0.0",
+    "crawlee": "^3.12.0",
+    "dotenv": "^17.2.4",
+    "express": "^5.2.1",
+    "openai": "^6.21.0",
+    "ora": "^8.1.0",
+    "turndown": "^7.2.0",
+    "xml2js": "^0.6.2"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/express": "^5.0.6",
+    "@types/node": "^22.0.0",
+    "@types/turndown": "^5.0.5",
+    "@types/xml2js": "^0.4.14",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

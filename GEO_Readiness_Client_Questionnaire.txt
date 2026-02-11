@@ -1,0 +1,150 @@
+
+========================================================================
+     AI PAIEŠKOS PARUOŠIMAS — KLIENTO ANKETA
+========================================================================
+
+  Optimizuosime jūsų svetainę, kad ji būtų matoma AI paieškose
+  (ChatGPT, Google AI, Perplexity ir kt.).
+
+  Prašome užpildyti kiek galite. Jei nežinote atsakymo — praleiskite.
+
+========================================================================
+
+
+1. SVETAINĖ
+------------------------------------------------------------------------
+
+   Svetainės adresas: ____________________________________________
+
+   Kuo sukurta svetainė?
+
+      WordPress    Shopify    Wix    Squarespace    Webflow
+      Kita: _______________    Nežinau
+
+   Kas prižiūri jūsų svetainę?
+
+      Aš pats / mano komanda     Programuotojas     Agentūra
+
+      Kontaktas (el. paštas arba tel.): ______________________________
+
+
+2. APIE VERSLĄ (ko nėra viešuose registruose)
+------------------------------------------------------------------------
+
+   Prekės ženklas / kaip klientai jus žino
+   (jei skiriasi nuo įmonės pavadinimo): _________________________
+
+   Trumpas verslo aprašymas (1-2 sakiniai):
+   _______________________________________________________________
+   _______________________________________________________________
+
+   Darbo valandos: _______________________________________________
+
+   Aptarnaujami regionai / miestai: ______________________________
+
+
+3. PASLAUGOS IR PRODUKTAI
+------------------------------------------------------------------------
+
+   Pagrindinės paslaugos (ką darote klientams?):
+
+      1. ________________________________________________________
+      2. ________________________________________________________
+      3. ________________________________________________________
+      4. ________________________________________________________
+      5. ________________________________________________________
+
+   Pagrindiniai produktai (jei parduodate):
+
+      1. ________________________________________________________
+      2. ________________________________________________________
+      3. ________________________________________________________
+
+   Kuo skiriasi nuo konkurentų?
+   _______________________________________________________________
+
+   Pagrindiniai konkurentai:
+
+      1. ________________________________________________________
+      2. ________________________________________________________
+      3. ________________________________________________________
+
+
+4. SOCIALINIAI TINKLAI
+------------------------------------------------------------------------
+
+   Palikite tuščią, jei neturite:
+
+   Facebook:  ____________________________________________________
+   Instagram: ____________________________________________________
+   LinkedIn:  ____________________________________________________
+   YouTube:   ____________________________________________________
+   Google verslo profilis: _______________________________________
+   Kita: ________________________________________________________
+
+
+5. KAIP KLIENTAI JUS RANDA
+------------------------------------------------------------------------
+
+   Ką klientas surašytų į Google arba ChatGPT,
+   norėdamas rasti tokį verslą kaip jūsų?
+
+      1. ________________________________________________________
+      2. ________________________________________________________
+      3. ________________________________________________________
+      4. ________________________________________________________
+      5. ________________________________________________________
+
+
+6. LEIDIMAI
+------------------------------------------------------------------------
+
+   Ar AI paieškos (ChatGPT, Google AI ir kt.) gali rodyti
+   jūsų svetainės turinį savo atsakymuose?
+
+      Taip    Ne    Nesu tikras/tikra
+
+   Ar AI gali cituoti tekstą iš jūsų svetainės?
+
+      Taip    Ne    Nesu tikras/tikra
+
+   Ar yra puslapių, kurių AI neturėtų matyti?
+   (pvz. prisijungimo zona, vidiniai puslapiai)
+
+      Ne, viskas vieša
+      Taip — kurie? _____________________________________________
+
+
+7. PAPILDOMA INFORMACIJA
+------------------------------------------------------------------------
+
+   Ar yra svarbios informacijos apie jūsų verslą, kurios NĖRA
+   svetainėje? (pvz. apdovanojimai, sertifikatai, partnerystės)
+   _______________________________________________________________
+   _______________________________________________________________
+
+   Ar planuojate svetainės ar verslo pokyčius artimiausiu metu?
+   _______________________________________________________________
+
+
+========================================================================
+  JŪSŲ PROGRAMUOTOJUI (nebūtina — persiųskite jam šią dalį)
+========================================================================
+
+  Ar galima įkelti failus į svetainės šakninį katalogą?    Taip / Ne
+  (pvz. jususvetaine.lt/robots.txt)
+
+  Kokia TVS (CMS) naudojama? ____________________________________
+
+  Ar yra prieiga prie FTP / failų tvarkyklės?              Taip / Ne
+
+  Ar naudojate CDN? Kokį? _______________________________________
+
+  Ar yra įskiepių, blokuojančių botus?                     Taip / Ne
+
+========================================================================
+
+  Ačiū! Peržiūrėsime atsakymus ir paruošime jūsų svetainės
+  AI paieškos optimizavimo ataskaitą bei diegimo planą.
+
+========================================================================
