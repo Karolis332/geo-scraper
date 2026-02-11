@@ -229,6 +229,24 @@ export function createServer(port: number, dbPath: string) {
     }
   });
 
+  // ── GET /api/jobs/:id/comparison — serve the comparison report ────────
+  app.get('/api/jobs/:id/comparison', async (req: Request<IdParams>, res: Response) => {
+    const job = db.getJob(req.params.id);
+    if (!job || !job.output_dir) {
+      res.status(404).json({ error: 'Job not found' });
+      return;
+    }
+
+    const fullPath = join(job.output_dir, 'comparison-report.html');
+
+    try {
+      const content = await readFile(fullPath, 'utf-8');
+      res.type('html').send(content);
+    } catch {
+      res.status(404).json({ error: 'Comparison report not found' });
+    }
+  });
+
   // ── DELETE /api/jobs/:id ──────────────────────────────────────────────
   app.delete('/api/jobs/:id', async (req: Request<IdParams>, res: Response) => {
     const job = db.getJob(req.params.id);

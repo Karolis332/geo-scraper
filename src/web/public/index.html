@@ -156,6 +156,7 @@
       <table class="detail-table" id="result-table"></table>
       <div class="result-actions">
         <button class="btn btn-primary btn-sm" id="btn-report" onclick="viewReport()">View Report</button>
+        <button class="btn btn-primary btn-sm" id="btn-comparison" style="display:none;background:#22c55e;border-color:#22c55e" onclick="viewComparison()">Before / After</button>
         <button class="btn btn-secondary btn-sm" id="btn-files" onclick="viewFiles()">Browse Files</button>
         <button class="btn btn-secondary btn-sm" onclick="resetForm()">New Scan</button>
       </div>
@@ -294,6 +295,9 @@
     document.getElementById('result-label').textContent =
       job.type === 'scan' ? 'GEO Compliance Score' : 'AI Visibility Score';
 
+    // Show comparison button only for scan jobs
+    document.getElementById('btn-comparison').style.display = job.type === 'scan' ? '' : 'none';
+
     // Render detail table
     const table = document.getElementById('result-table');
     const result = job.result;
@@ -325,6 +329,10 @@
   // ── Report & Files ─────────────────────────────────────────────
   function viewReport() {
     if (currentJobId) window.open('/api/jobs/' + currentJobId + '/report', '_blank');
+  }
+
+  function viewComparison() {
+    if (currentJobId) window.open('/api/jobs/' + currentJobId + '/comparison', '_blank');
   }
 
   async function viewFiles() {

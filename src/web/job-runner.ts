@@ -20,6 +20,7 @@ import { generateTdmrepJson } from '../generators/tdmrep-json.js';
 import { generateHumansTxt } from '../generators/humans-txt.js';
 import { generateManifestJson } from '../generators/manifest-json.js';
 import { generateAuditReportHtml, generateSummaryJson } from '../generators/audit-report.js';
+import { generateProjectedAudit, generateComparisonHtml } from '../generators/comparison-report.js';
 
 import type { JobDatabase } from './database.js';
 import type {
@@ -114,6 +115,9 @@ export async function runScanJob(
 
     files.push({ path: 'audit-report.html', content: generateAuditReportHtml(audit, crawlResult) });
     files.push({ path: 'summary.json', content: generateSummaryJson(audit, crawlResult) });
+
+    const projected = generateProjectedAudit(audit);
+    files.push({ path: 'comparison-report.html', content: generateComparisonHtml(audit, projected, crawlResult) });
 
     emit(jobId, 'generate', 'Writing files...', 80);
     for (const file of files) {

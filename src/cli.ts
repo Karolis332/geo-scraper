@@ -23,6 +23,7 @@ import { generateTdmrepJson } from './generators/tdmrep-json.js';
 import { generateHumansTxt } from './generators/humans-txt.js';
 import { generateManifestJson } from './generators/manifest-json.js';
 import { generateAuditReportHtml, generateSummaryJson } from './generators/audit-report.js';
+import { generateProjectedAudit, generateComparisonHtml } from './generators/comparison-report.js';
 import { extractDomain, isValidHttpUrl, ensureHttps } from './utils/url-utils.js';
 import type { CLIOptions, GeneratorOptions, CheckOptions, SearchQuery } from './crawler/page-data.js';
 
@@ -40,7 +41,6 @@ const scanCmd = new Command('scan')
   .option('-o, --output <dir>', 'Output directory', './geo-output')
   .option('-m, --max-pages <n>', 'Maximum pages to crawl', '50')
   .option('-c, --concurrency <n>', 'Concurrent requests', '3')
-  .option('--js-render', 'Use Playwright for JS-rendered pages (not yet implemented)', false)
   .option('--audit-only', 'Only audit existing GEO compliance, do not generate files', false)
   .option('--allow-training', 'Allow AI training in generated policies (default)', true)
   .option('--deny-training', 'Deny AI training in generated policies', false)
@@ -115,7 +115,6 @@ program
   .option('-o, --output <dir>', 'Output directory', './geo-output')
   .option('-m, --max-pages <n>', 'Maximum pages to crawl', '50')
   .option('-c, --concurrency <n>', 'Concurrent requests', '3')
-  .option('--js-render', 'Use Playwright for JS-rendered pages (not yet implemented)', false)
   .option('--audit-only', 'Only audit existing GEO compliance, do not generate files', false)
   .option('--allow-training', 'Allow AI training in generated policies (default)', true)
   .option('--deny-training', 'Deny AI training in generated policies', false)
@@ -155,7 +154,7 @@ async function runScan(rawUrl: string, opts: Record<string, unknown>): Promise<v
   const options: CLIOptions = {
     maxPages: parseInt(opts.maxPages as string, 10) || 50,
     concurrency: parseInt(opts.concurrency as string, 10) || 3,
-    jsRender: !!opts.jsRender,
+    jsRender: false,
     verbose: !!opts.verbose,
     auditOnly: !!opts.auditOnly,
     allowTraining: !opts.denyTraining,
@@ -173,11 +172,6 @@ async function runScan(rawUrl: string, opts: Record<string, unknown>): Promise<v
   console.log(`  ${chalk.dim('Pages:')}   ${chalk.white(String(options.maxPages))}`);
   console.log(`  ${chalk.dim('Training:')} ${options.denyTraining ? chalk.red('denied') : chalk.green('allowed')}`);
   console.log('');
-
-  if (options.jsRender) {
-    console.log(chalk.yellow('  Warning: --js-render is not yet implemented. Using static HTML crawling.'));
-    console.log('');
-  }
 
   // Step 1: Crawl
   const spinner = ora({ text: 'Crawling site...', color: 'cyan' }).start();
@@ -252,6 +246,10 @@ async function runScan(rawUrl: string, opts: Record<string, unknown>): Promise<v
   files.push({ path: 'audit-report.html', content: generateAuditReportHtml(audit, crawlResult) });
   files.push({ path: 'summary.json', content: generateSummaryJson(audit, crawlResult) });
 
+  // Before/After comparison report
+  const projected = generateProjectedAudit(audit);
+  files.push({ path: 'comparison-report.html', content: generateComparisonHtml(audit, projected, crawlResult) });
+
   // Write all files
   let written = 0;
   for (const file of files) {
@@ -278,6 +276,7 @@ async function runScan(rawUrl: string, opts: Record<string, unknown>): Promise<v
   const sdCount = structuredData.perPage.size + 1;
   console.log(`    ${chalk.green('+')} structured-data/ (${sdCount} files)`);
   console.log(`    ${chalk.green('+')} audit-report.html`);
+  console.log(`    ${chalk.green('+')} comparison-report.html`);
   console.log(`    ${chalk.green('+')} summary.json`);
 
   console.log('');
