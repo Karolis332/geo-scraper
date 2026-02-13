@@ -99,6 +99,12 @@ const webCmd = new Command('web')
       console.log('');
       console.log(chalk.dim('  Press Ctrl+C to stop.'));
       console.log('');
+
+      // Keep the action pending so Commander doesn't exit the process
+      await new Promise<void>(() => {
+        // Never resolves — the server keeps the event loop alive.
+        // Process exits on SIGINT (Ctrl+C).
+      });
     } catch (err) {
       console.error(chalk.red(`\nFatal error: ${(err as Error).message}`));
       process.exit(1);
