@@ -428,6 +428,21 @@ export function generateComparisonHtml(
       margin-top: 0.25rem;
     }
 
+    .export-toolbar {
+      position: sticky; top: 0; z-index: 50;
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 10px 16px; margin: -2rem -2rem 2rem -2rem;
+      display: flex; gap: 10px; align-items: center;
+    }
+    .export-toolbar button {
+      padding: 6px 16px; border-radius: 6px; border: 1px solid var(--border);
+      background: var(--accent); color: white; font-weight: 500; font-size: 13px;
+      cursor: pointer; font-family: inherit;
+    }
+    .export-toolbar button:hover { opacity: 0.85; }
+    .export-toolbar button.secondary { background: var(--surface2); color: var(--text); }
+    .export-toolbar span { color: var(--text-dim); font-size: 13px; margin-left: auto; }
+
     @media (max-width: 640px) {
       body { padding: 1rem; }
       .score-row { flex-direction: column; gap: 1.5rem; }
@@ -435,9 +450,21 @@ export function generateComparisonHtml(
       .score-circle { width: 120px; height: 120px; }
       .score-circle .grade { font-size: 2.2rem; }
     }
+    @media print {
+      .export-toolbar { display: none !important; }
+      :root { --bg: #fff; --surface: #fff; --surface2: #f5f5f5; --border: #ddd; --text: #111; --text-dim: #555; }
+      body { background: #fff; color: #111; padding: 1rem; }
+      .score-circle, .bar-fill, .delta-pill, .delta-pill-hero, .section-icon, .priority { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .item-card { break-inside: avoid; }
+    }
   </style>
 </head>
 <body>
+  <div class="export-toolbar">
+    <button onclick="window.print()">Download PDF</button>
+    <button class="secondary" onclick="exportCsv()">Export CSV</button>
+    <span>Use browser "Save as PDF" in the print dialog</span>
+  </div>
 
   <!-- Hero -->
   <div class="hero">
@@ -511,6 +538,30 @@ ${alreadyGoodHtml}
     <div class="date-line">${new Date().toISOString().split('T')[0]}</div>
   </div>
 
+<script>
+function exportCsv() {
+  const rows = [['Item','Category','Before Score','After Score','Delta','Status']];
+  document.querySelectorAll('.item-card').forEach(el => {
+    const name = el.querySelector('.item-name')?.textContent || '';
+    const priority = el.querySelector('.priority')?.textContent || '';
+    const barValues = el.querySelectorAll('.bar-value');
+    const before = barValues[0]?.textContent?.trim() || '';
+    const after = barValues[1]?.textContent?.trim() || '';
+    const delta = el.querySelector('.delta-pill')?.textContent?.trim() || '0';
+    const status = el.classList.contains('improved') ? 'improved' : 'unchanged';
+    rows.push([name, priority, before, after, delta, status]);
+  });
+  const csv = rows.map(r => r.map(c => '"' + c.replace(/"/g, '""') + '"').join(',')).join('\\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'geo-comparison-report.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+if (new URLSearchParams(location.search).get('export') === 'pdf') window.print();
+if (new URLSearchParams(location.search).get('export') === 'csv') exportCsv();
+</script>
 </body>
 </html>`;
 }

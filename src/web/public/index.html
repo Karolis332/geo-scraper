@@ -156,7 +156,11 @@
       <table class="detail-table" id="result-table"></table>
       <div class="result-actions">
         <button class="btn btn-primary btn-sm" id="btn-report" onclick="viewReport()">View Report</button>
+        <button class="btn btn-secondary btn-sm" id="btn-report-pdf" onclick="viewReport('pdf')" title="Export report as PDF">PDF</button>
+        <button class="btn btn-secondary btn-sm" id="btn-report-csv" onclick="viewReport('csv')" title="Export report as CSV">CSV</button>
         <button class="btn btn-primary btn-sm" id="btn-comparison" style="display:none;background:#22c55e;border-color:#22c55e" onclick="viewComparison()">Before / After</button>
+        <button class="btn btn-secondary btn-sm" id="btn-comparison-pdf" style="display:none" onclick="viewComparison('pdf')" title="Export comparison as PDF">PDF</button>
+        <button class="btn btn-secondary btn-sm" id="btn-comparison-csv" style="display:none" onclick="viewComparison('csv')" title="Export comparison as CSV">CSV</button>
         <button class="btn btn-secondary btn-sm" id="btn-files" onclick="viewFiles()">Browse Files</button>
         <button class="btn btn-secondary btn-sm" onclick="resetForm()">New Scan</button>
       </div>
@@ -296,7 +300,10 @@
       job.type === 'scan' ? 'GEO Compliance Score' : 'AI Visibility Score';
 
     // Show comparison button only for scan jobs
-    document.getElementById('btn-comparison').style.display = job.type === 'scan' ? '' : 'none';
+    const isScan = job.type === 'scan';
+    document.getElementById('btn-comparison').style.display = isScan ? '' : 'none';
+    document.getElementById('btn-comparison-pdf').style.display = isScan ? '' : 'none';
+    document.getElementById('btn-comparison-csv').style.display = isScan ? '' : 'none';
 
     // Render detail table
     const table = document.getElementById('result-table');
@@ -327,12 +334,16 @@
   }
 
   // ── Report & Files ─────────────────────────────────────────────
-  function viewReport() {
-    if (currentJobId) window.open('/api/jobs/' + currentJobId + '/report', '_blank');
+  function viewReport(exportType) {
+    if (!currentJobId) return;
+    const suffix = exportType ? '?export=' + exportType : '';
+    window.open('/api/jobs/' + currentJobId + '/report' + suffix, '_blank');
   }
 
-  function viewComparison() {
-    if (currentJobId) window.open('/api/jobs/' + currentJobId + '/comparison', '_blank');
+  function viewComparison(exportType) {
+    if (!currentJobId) return;
+    const suffix = exportType ? '?export=' + exportType : '';
+    window.open('/api/jobs/' + currentJobId + '/comparison' + suffix, '_blank');
   }
 
   async function viewFiles() {
