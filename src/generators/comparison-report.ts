@@ -83,17 +83,23 @@ function scoreToGrade(score: number): string {
 }
 
 function getGradeColor(grade: string): string {
-  if (grade.startsWith('A')) return '#22c55e';
-  if (grade === 'B') return '#3b82f6';
-  if (grade === 'C') return '#eab308';
-  if (grade === 'D') return '#f97316';
-  return '#ef4444';
+  if (grade.startsWith('A')) return '#34d399';
+  if (grade === 'B') return '#60a5fa';
+  if (grade === 'C') return '#fbbf24';
+  if (grade === 'D') return '#fb923c';
+  return '#f87171';
 }
 
 function getScoreColor(score: number): string {
-  if (score >= 70) return '#22c55e';
-  if (score >= 40) return '#eab308';
-  return '#ef4444';
+  if (score >= 70) return '#34d399';
+  if (score >= 40) return '#fbbf24';
+  return '#f87171';
+}
+
+function getScoreGradient(score: number): string {
+  if (score >= 70) return 'linear-gradient(90deg,#34d399,#6ee7b7)';
+  if (score >= 40) return 'linear-gradient(90deg,#fbbf24,#fcd34d)';
+  return 'linear-gradient(90deg,#f87171,#fca5a5)';
 }
 
 function priorityLabel(cat: string): string {
@@ -141,6 +147,8 @@ export function generateComparisonHtml(
     const note = showImprovement && improvement ? improvement.note : b.recommendation;
     const beforeBarColor = getScoreColor(b.score);
     const afterBarColor = getScoreColor(a.score);
+    const beforeGradient = getScoreGradient(b.score);
+    const afterGradient = getScoreGradient(a.score);
 
     return `
       <div class="item-card${showImprovement ? ' improved' : ''}">
@@ -155,14 +163,14 @@ export function generateComparisonHtml(
           <div class="bar-row">
             <span class="bar-label">Now</span>
             <div class="bar-track">
-              <div class="bar-fill" style="width:${b.score}%;background:${beforeBarColor}"></div>
+              <div class="bar-fill" style="width:${b.score}%;background:${beforeGradient}"></div>
             </div>
             <span class="bar-value" style="color:${beforeBarColor}">${b.score}</span>
           </div>
           <div class="bar-row">
             <span class="bar-label">After</span>
             <div class="bar-track">
-              <div class="bar-fill" style="width:${a.score}%;background:${afterBarColor}"></div>
+              <div class="bar-fill" style="width:${a.score}%;background:${afterGradient}"></div>
             </div>
             <span class="bar-value" style="color:${afterBarColor}">${a.score}</span>
           </div>
@@ -183,22 +191,29 @@ export function generateComparisonHtml(
   <title>GEO Comparison Report — ${siteName}</title>
   <style>
     :root {
-      --bg: #0a0a0a;
-      --surface: #141414;
-      --surface2: #1e1e1e;
-      --border: #2a2a2a;
-      --text: #e5e5e5;
-      --text-dim: #888;
-      --accent: #6366f1;
-      --green: #22c55e;
-      --yellow: #eab308;
-      --red: #ef4444;
-      --blue: #3b82f6;
-      --orange: #f97316;
+      --bg: #09090b;
+      --surface: #131316;
+      --surface2: #1c1c22;
+      --surface3: #25252d;
+      --border: rgba(255,255,255,0.06);
+      --border-strong: rgba(255,255,255,0.1);
+      --text: #ececf1;
+      --text-dim: #a1a1aa;
+      --text-muted: #71717a;
+      --accent: #818cf8;
+      --green: #34d399;
+      --yellow: #fbbf24;
+      --red: #f87171;
+      --blue: #60a5fa;
+      --orange: #fb923c;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.3), 0 1px 3px rgba(0,0,0,0.15);
+      --shadow-md: 0 4px 12px rgba(0,0,0,0.4), 0 2px 4px rgba(0,0,0,0.2);
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
       background: var(--bg);
       color: var(--text);
       line-height: 1.6;
@@ -213,19 +228,21 @@ export function generateComparisonHtml(
       padding: 3rem 0 2.5rem;
       margin-bottom: 2.5rem;
       border-bottom: 1px solid var(--border);
+      background: radial-gradient(ellipse at 50% 0%, rgba(129,140,248,0.04) 0%, transparent 70%);
     }
     .hero h1 {
       font-size: 1.1rem;
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.15em;
-      color: var(--text-dim);
+      color: var(--text-muted);
       margin-bottom: 0.25rem;
     }
     .hero .site-name {
       font-size: 1.8rem;
       font-weight: 700;
       margin-bottom: 0.25rem;
+      letter-spacing: -0.025em;
     }
     .hero .site-url {
       font-size: 0.9rem;
@@ -244,21 +261,20 @@ export function generateComparisonHtml(
       font-size: 0.7rem;
       text-transform: uppercase;
       letter-spacing: 0.12em;
-      color: var(--text-dim);
+      color: var(--text-muted);
       margin-bottom: 0.5rem;
     }
     .score-circle {
       width: 150px;
       height: 150px;
       border-radius: 50%;
-      border: 5px solid;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       margin: 0 auto;
     }
-    .score-circle .grade { font-size: 3rem; font-weight: 800; line-height: 1; }
+    .score-circle .grade { font-size: 3.2rem; font-weight: 800; line-height: 1; }
     .score-circle .score-num { font-size: 1rem; color: var(--text-dim); margin-top: 4px; }
     .arrow-block {
       display: flex;
@@ -268,13 +284,15 @@ export function generateComparisonHtml(
     }
     .arrow-icon {
       font-size: 2rem;
-      color: var(--text-dim);
+      color: var(--text-muted);
+      opacity: 0.6;
     }
     .delta-pill-hero {
       font-size: 1.5rem;
       font-weight: 800;
       color: var(--green);
-      background: rgba(34, 197, 94, 0.12);
+      background: linear-gradient(135deg, rgba(52,211,153,0.15), rgba(52,211,153,0.08));
+      border: 1px solid rgba(52,211,153,0.2);
       padding: 0.3rem 1.2rem;
       border-radius: 24px;
     }
@@ -301,23 +319,24 @@ export function generateComparisonHtml(
     .section-icon {
       width: 36px;
       height: 36px;
-      border-radius: 50%;
+      border-radius: 10px;
       display: flex;
       align-items: center;
       justify-content: center;
       font-size: 1.1rem;
       flex-shrink: 0;
     }
-    .section-icon.green { background: rgba(34,197,94,0.15); color: var(--green); }
-    .section-icon.yellow { background: rgba(234,179,8,0.15); color: var(--yellow); }
-    .section-icon.blue { background: rgba(99,102,241,0.15); color: var(--accent); }
-    .section-title { font-size: 1.25rem; font-weight: 700; }
+    .section-icon.green { background: rgba(52,211,153,0.12); color: var(--green); }
+    .section-icon.yellow { background: rgba(251,191,36,0.12); color: var(--yellow); }
+    .section-icon.blue { background: rgba(129,140,248,0.12); color: var(--accent); }
+    .section-title { font-size: 1.25rem; font-weight: 700; letter-spacing: -0.02em; }
     .section-count {
       font-size: 0.8rem;
       color: var(--text-dim);
       background: var(--surface2);
       padding: 2px 10px;
       border-radius: 10px;
+      border: 1px solid var(--border);
     }
 
     /* === Item Cards === */
@@ -327,7 +346,10 @@ export function generateComparisonHtml(
       border-radius: 10px;
       padding: 1.25rem 1.5rem;
       margin-bottom: 0.75rem;
+      box-shadow: var(--shadow-sm);
+      transition: box-shadow 0.2s ease, border-color 0.2s ease;
     }
+    .item-card:hover { box-shadow: var(--shadow-md); border-color: var(--border-strong); }
     .item-card.improved {
       border-left: 3px solid var(--green);
     }
@@ -354,15 +376,16 @@ export function generateComparisonHtml(
       padding: 2px 8px;
       border-radius: 4px;
     }
-    .priority-critical { background: rgba(239,68,68,0.12); color: var(--red); }
-    .priority-high { background: rgba(234,179,8,0.12); color: var(--yellow); }
-    .priority-medium { background: rgba(59,130,246,0.12); color: var(--blue); }
-    .priority-low { background: rgba(136,136,136,0.12); color: var(--text-dim); }
+    .priority-critical { background: rgba(248,113,113,0.12); color: var(--red); }
+    .priority-high { background: rgba(251,191,36,0.12); color: var(--yellow); }
+    .priority-medium { background: rgba(96,165,250,0.12); color: var(--blue); }
+    .priority-low { background: rgba(161,161,170,0.12); color: var(--text-dim); }
     .delta-pill {
       font-size: 0.8rem;
       font-weight: 700;
       color: var(--green);
-      background: rgba(34,197,94,0.12);
+      background: linear-gradient(135deg, rgba(52,211,153,0.15), rgba(52,211,153,0.08));
+      border: 1px solid rgba(52,211,153,0.15);
       padding: 2px 10px;
       border-radius: 10px;
     }
@@ -381,7 +404,7 @@ export function generateComparisonHtml(
     }
     .bar-label {
       font-size: 0.75rem;
-      color: var(--text-dim);
+      color: var(--text-muted);
       width: 36px;
       text-align: right;
       flex-shrink: 0;
@@ -396,7 +419,7 @@ export function generateComparisonHtml(
     .bar-fill {
       height: 100%;
       border-radius: 5px;
-      transition: width 0.6s ease;
+      transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
     }
     .bar-value {
       font-size: 0.85rem;
@@ -418,30 +441,35 @@ export function generateComparisonHtml(
       padding-top: 1.5rem;
       border-top: 1px solid var(--border);
       font-size: 0.8rem;
-      color: var(--text-dim);
+      color: var(--text-muted);
       text-align: center;
+      letter-spacing: 0.01em;
     }
     .footer strong { color: var(--text); }
     .date-line {
       font-size: 0.75rem;
-      color: var(--text-dim);
+      color: var(--text-muted);
       margin-top: 0.25rem;
     }
 
     .export-toolbar {
       position: sticky; top: 0; z-index: 50;
-      background: var(--surface); border-bottom: 1px solid var(--border);
+      background: rgba(19,19,22,0.75);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
       padding: 10px 16px; margin: -2rem -2rem 2rem -2rem;
       display: flex; gap: 10px; align-items: center;
     }
     .export-toolbar button {
-      padding: 6px 16px; border-radius: 6px; border: 1px solid var(--border);
+      padding: 6px 16px; border-radius: 6px; border: 1px solid var(--border-strong);
       background: var(--accent); color: white; font-weight: 500; font-size: 13px;
       cursor: pointer; font-family: inherit;
+      transition: opacity 0.15s ease, transform 0.15s ease;
     }
-    .export-toolbar button:hover { opacity: 0.85; }
+    .export-toolbar button:hover { opacity: 0.85; transform: translateY(-1px); }
     .export-toolbar button.secondary { background: var(--surface2); color: var(--text); }
-    .export-toolbar span { color: var(--text-dim); font-size: 13px; margin-left: auto; }
+    .export-toolbar span { color: var(--text-muted); font-size: 13px; margin-left: auto; }
 
     @media (max-width: 640px) {
       body { padding: 1rem; }
@@ -452,10 +480,16 @@ export function generateComparisonHtml(
     }
     @media print {
       .export-toolbar { display: none !important; }
-      :root { --bg: #fff; --surface: #fff; --surface2: #f5f5f5; --border: #ddd; --text: #111; --text-dim: #555; }
+      :root {
+        --bg: #fff; --surface: #fff; --surface2: #f5f5f5; --surface3: #eee;
+        --border: #ddd; --border-strong: #ccc;
+        --text: #111; --text-dim: #555; --text-muted: #777;
+        --shadow-sm: none; --shadow-md: none;
+      }
       body { background: #fff; color: #111; padding: 1rem; }
+      .hero { background: none; }
       .score-circle, .bar-fill, .delta-pill, .delta-pill-hero, .section-icon, .priority { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      .item-card { break-inside: avoid; }
+      .item-card { break-inside: avoid; box-shadow: none; }
     }
   </style>
 </head>
@@ -475,7 +509,7 @@ export function generateComparisonHtml(
     <div class="score-row">
       <div class="score-block">
         <div class="circle-label">Current</div>
-        <div class="score-circle" style="border-color:${beforeColor}">
+        <div class="score-circle" style="border:none;box-shadow:inset 0 0 0 5px ${beforeColor},0 0 24px ${beforeColor}44,0 0 48px ${beforeColor}22">
           <span class="grade" style="color:${beforeColor}">${before.grade}</span>
           <span class="score-num">${before.overallScore}/100</span>
         </div>
@@ -488,7 +522,7 @@ export function generateComparisonHtml(
 
       <div class="score-block">
         <div class="circle-label">After Deploy</div>
-        <div class="score-circle" style="border-color:${afterColor}">
+        <div class="score-circle" style="border:none;box-shadow:inset 0 0 0 5px ${afterColor},0 0 24px ${afterColor}44,0 0 48px ${afterColor}22">
           <span class="grade" style="color:${afterColor}">${after.grade}</span>
           <span class="score-num">${after.overallScore}/100</span>
         </div>

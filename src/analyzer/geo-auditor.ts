@@ -52,6 +52,9 @@ export function auditSite(crawlResult: SiteCrawlResult): AuditResult {
   // 6. AI Bot Blocking — check if robots.txt accidentally blocks AI crawlers
   items.push(auditAiBotBlocking(existingGeoFiles.robotsTxt));
 
+  // 7. Search Engine Indexing — verification tags, sitemap in robots, noindex check
+  items.push(auditSearchIndexing(crawlResult));
+
   // ===== HIGH PRIORITY =====
 
   // 6. llms-full.txt
@@ -770,6 +773,94 @@ function auditContentDepth(crawlResult: SiteCrawlResult): AuditItem {
     recommendation: score < 60
       ? 'Add more substantive content (>500 words) with clear heading structure (>=3 headings). AI engines chunk content by paragraphs under headings.'
       : 'Content depth and structure are solid',
+  };
+}
+
+function auditSearchIndexing(crawlResult: SiteCrawlResult): AuditItem {
+  const { pages, existingGeoFiles } = crawlResult;
+  let score = 0;
+  const signals: string[] = [];
+  const missing: string[] = [];
+
+  // 1. Google Search Console verification tag (20 pts)
+  const hasGoogleVerification = pages.some(p => p.meta.googleVerification);
+  if (hasGoogleVerification) {
+    score += 20;
+    signals.push('Google Search Console verification');
+  } else {
+    missing.push('Google Search Console verification tag');
+  }
+
+  // 2. Bing Webmaster Tools verification — meta tag OR BingSiteAuth.xml (20 pts)
+  const hasBingMetaTag = pages.some(p => p.meta.bingVerification);
+  const hasBingSiteAuth = !!existingGeoFiles.bingSiteAuth;
+  if (hasBingMetaTag || hasBingSiteAuth) {
+    score += 20;
+    const method = hasBingMetaTag && hasBingSiteAuth
+      ? 'meta tag + BingSiteAuth.xml'
+      : hasBingMetaTag ? 'meta tag' : 'BingSiteAuth.xml';
+    signals.push(`Bing Webmaster Tools verification (${method})`);
+  } else {
+    missing.push('Bing Webmaster Tools verification (meta tag or BingSiteAuth.xml)');
+  }
+
+  // 3. Sitemap referenced in robots.txt (20 pts)
+  const robotsTxt = existingGeoFiles.robotsTxt || '';
+  const hasSitemapInRobots = /^Sitemap:/im.test(robotsTxt);
+  if (hasSitemapInRobots) {
+    score += 20;
+    signals.push('Sitemap in robots.txt');
+  } else {
+    missing.push('Sitemap directive in robots.txt');
+  }
+
+  // 4. No noindex blocking (20 pts)
+  const noindexPages = pages.filter(p => {
+    const robots = p.meta.robots?.toLowerCase() || '';
+    const xRobotsTag = (p.responseHeaders['x-robots-tag'] || '').toLowerCase();
+    return robots.includes('noindex') || xRobotsTag.includes('noindex');
+  });
+  if (noindexPages.length === 0) {
+    score += 20;
+    signals.push('No noindex pages');
+  } else {
+    missing.push(`${noindexPages.length} page(s) with noindex`);
+  }
+
+  // 5. Canonical URLs properly set (20 pts)
+  const pagesWithCanonical = pages.filter(p => p.meta.canonical);
+  const canonicalCoverage = pages.length > 0 ? pagesWithCanonical.length / pages.length : 0;
+  if (canonicalCoverage >= 0.8) {
+    score += 20;
+    signals.push(`Canonical URLs set (${pagesWithCanonical.length}/${pages.length} pages)`);
+  } else if (canonicalCoverage > 0) {
+    score += Math.round(20 * canonicalCoverage);
+    missing.push(`Canonical URLs on only ${pagesWithCanonical.length}/${pages.length} pages`);
+  } else {
+    missing.push('No canonical URLs set');
+  }
+
+  const details = signals.length > 0
+    ? `Indexing signals found: ${signals.join(', ')}${missing.length > 0 ? '. Missing: ' + missing.join(', ') : ''}`
+    : `No indexing signals found. Missing: ${missing.join(', ')}`;
+
+  let recommendation: string;
+  if (score === 100) {
+    recommendation = 'All search engine indexing signals are present — your site is well-configured for discovery';
+  } else if (score >= 50) {
+    recommendation = `Partial indexing setup. Add missing signals: ${missing.join(', ')}`;
+  } else {
+    recommendation = `Your site is likely not indexed by search engines. Set up Google Search Console and Bing Webmaster Tools, add a Sitemap directive to robots.txt, set canonical URLs, and remove any noindex tags`;
+  }
+
+  return {
+    name: 'Search Engine Indexing',
+    category: 'critical',
+    score,
+    maxScore: 100,
+    status: score === 100 ? 'pass' : score >= 50 ? 'partial' : 'fail',
+    details,
+    recommendation,
   };
 }
 

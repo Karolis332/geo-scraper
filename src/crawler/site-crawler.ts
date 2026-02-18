@@ -33,6 +33,7 @@ const GEO_FILE_PATHS = [
   { key: 'tdmrepJson', path: '/.well-known/tdmrep.json' },
   { key: 'humansTxt', path: '/humans.txt' },
   { key: 'manifestJson', path: '/manifest.json' },
+  { key: 'bingSiteAuth', path: '/BingSiteAuth.xml' },
 ] as const;
 
 export async function crawlSite(
@@ -210,11 +211,19 @@ async function fetchExistingGeoFiles(baseUrl: string): Promise<ExistingGeoFiles>
           // Sanity check — ignore HTML error pages served as 200
           const isHtmlPage = /<!DOCTYPE|<html/i.test(text);
           const isXmlFile = key === 'sitemapXml';
+          const isBingSiteAuth = key === 'bingSiteAuth';
           const isJsonFile = key === 'manifestJson' || key === 'aiJson' || key === 'tdmrepJson';
 
           if (isXmlFile) {
             // Accept sitemap if it contains <urlset> or <sitemapindex>
             if (text.includes('<urlset') || text.includes('<sitemapindex')) {
+              result[key] = text;
+            } else {
+              result[key] = null;
+            }
+          } else if (isBingSiteAuth) {
+            // Accept BingSiteAuth.xml if it contains <users> or <access-token>
+            if (text.includes('<users') || text.includes('<access-token')) {
               result[key] = text;
             } else {
               result[key] = null;

@@ -40,6 +40,7 @@ describe('auditSite', () => {
         tdmrepJson: '{"policy":[]}',
         humansTxt: 'Team info',
         manifestJson: '{"name":"Example"}',
+        bingSiteAuth: null,
       },
     }));
     expect(populated.overallScore).toBeGreaterThan(empty.overallScore);
@@ -58,7 +59,7 @@ describe('auditSite', () => {
           robotsTxt: 'User-agent: *\nAllow: /',
           sitemapXml: null, llmsTxt: null, llmsFullTxt: null,
           aiTxt: null, aiJson: null, securityTxt: null,
-          tdmrepJson: null, humansTxt: null, manifestJson: null,
+          tdmrepJson: null, humansTxt: null, manifestJson: null, bingSiteAuth: null,
         },
       }));
       const item = result.items.find(i => i.name === 'robots.txt')!;
@@ -71,7 +72,7 @@ describe('auditSite', () => {
           robotsTxt: 'User-agent: GPTBot\nAllow: /\nUser-agent: ClaudeBot\nAllow: /\nUser-agent: Google-Extended\nAllow: /',
           sitemapXml: null, llmsTxt: null, llmsFullTxt: null,
           aiTxt: null, aiJson: null, securityTxt: null,
-          tdmrepJson: null, humansTxt: null, manifestJson: null,
+          tdmrepJson: null, humansTxt: null, manifestJson: null, bingSiteAuth: null,
         },
       }));
       const item = result.items.find(i => i.name === 'robots.txt')!;
@@ -92,6 +93,7 @@ describe('auditSite', () => {
           robotsTxt: null, sitemapXml: '<urlset><url><loc>https://example.com/</loc></url></urlset>',
           llmsTxt: null, llmsFullTxt: null, aiTxt: null, aiJson: null,
           securityTxt: null, tdmrepJson: null, humansTxt: null, manifestJson: null,
+          bingSiteAuth: null,
         },
       }));
       const item = result.items.find(i => i.name === 'sitemap.xml')!;
@@ -105,6 +107,7 @@ describe('auditSite', () => {
           sitemapXml: '<urlset><url><loc>https://example.com/</loc><lastmod>2025-01-01</lastmod></url></urlset>',
           llmsTxt: null, llmsFullTxt: null, aiTxt: null, aiJson: null,
           securityTxt: null, tdmrepJson: null, humansTxt: null, manifestJson: null,
+          bingSiteAuth: null,
         },
       }));
       const item = result.items.find(i => i.name === 'sitemap.xml')!;
@@ -120,6 +123,7 @@ describe('auditSite', () => {
           llmsTxt: '# My Site\n> A great site\n## Pages\n- [Home](https://example.com)',
           llmsFullTxt: null, aiTxt: null, aiJson: null,
           securityTxt: null, tdmrepJson: null, humansTxt: null, manifestJson: null,
+          bingSiteAuth: null,
         },
       }));
       const item = full.items.find(i => i.name === 'llms.txt')!;
@@ -134,6 +138,7 @@ describe('auditSite', () => {
           llmsTxt: '# My Site\nSome content without blockquote or sections',
           llmsFullTxt: null, aiTxt: null, aiJson: null,
           securityTxt: null, tdmrepJson: null, humansTxt: null, manifestJson: null,
+          bingSiteAuth: null,
         },
       }));
       const item = partial.items.find(i => i.name === 'llms.txt')!;
@@ -161,7 +166,7 @@ describe('auditSite', () => {
             ogImage: null, ogType: null, ogSiteName: null, twitterCard: null,
             twitterTitle: null, twitterDescription: null, twitterImage: null,
             author: null, publishedDate: null, modifiedDate: '2025-06-01',
-            keywords: [], robots: null,
+            keywords: [], robots: null, googleVerification: null, bingVerification: null, yandexVerification: null,
           },
           content: {
             headings: [{ level: 1, text: 'Main' }, { level: 2, text: 'Sub' }, { level: 3, text: 'Detail' }],
@@ -186,6 +191,7 @@ describe('auditSite', () => {
           tdmrepJson: '{"policy":[]}',
           humansTxt: 'Team info',
           manifestJson: '{"name":"Site"}',
+          bingSiteAuth: null,
         },
       }));
       expect(result.overallScore).toBeGreaterThan(70);
@@ -207,7 +213,7 @@ describe('auditSite', () => {
           robotsTxt: 'User-agent: GPTBot\nDisallow: /\nUser-agent: ClaudeBot\nDisallow: /',
           sitemapXml: null, llmsTxt: null, llmsFullTxt: null,
           aiTxt: null, aiJson: null, securityTxt: null,
-          tdmrepJson: null, humansTxt: null, manifestJson: null,
+          tdmrepJson: null, humansTxt: null, manifestJson: null, bingSiteAuth: null,
         },
       }));
       const item = result.items.find(i => i.name === 'AI Bot Blocking')!;

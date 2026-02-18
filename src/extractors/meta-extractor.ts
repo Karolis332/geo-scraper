@@ -69,5 +69,8 @@ export function extractMeta($: CheerioAPI, url: string): PageMeta {
     modifiedDate,
     keywords,
     robots: getMeta('robots'),
+    googleVerification: getMeta('google-site-verification'),
+    bingVerification: getMeta('msvalidate.01'),
+    yandexVerification: getMeta('yandex-verification'),
   };
 }

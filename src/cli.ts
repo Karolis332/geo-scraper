@@ -39,7 +39,7 @@ const scanCmd = new Command('scan')
   .description('Crawl and audit a website for GEO compliance')
   .argument('<url>', 'Website URL to scrape')
   .option('-o, --output <dir>', 'Output directory', './geo-output')
-  .option('-m, --max-pages <n>', 'Maximum pages to crawl', '50')
+  .option('-m, --max-pages <n>', 'Maximum pages to crawl', '500')
   .option('-c, --concurrency <n>', 'Concurrent requests', '3')
   .option('--audit-only', 'Only audit existing GEO compliance, do not generate files', false)
   .option('--allow-training', 'Allow AI training in generated policies (default)', true)
@@ -119,7 +119,7 @@ program.addCommand(webCmd);
 program
   .argument('[url]', 'Website URL (shorthand for scan)')
   .option('-o, --output <dir>', 'Output directory', './geo-output')
-  .option('-m, --max-pages <n>', 'Maximum pages to crawl', '50')
+  .option('-m, --max-pages <n>', 'Maximum pages to crawl', '500')
   .option('-c, --concurrency <n>', 'Concurrent requests', '3')
   .option('--audit-only', 'Only audit existing GEO compliance, do not generate files', false)
   .option('--allow-training', 'Allow AI training in generated policies (default)', true)
@@ -158,7 +158,7 @@ async function runScan(rawUrl: string, opts: Record<string, unknown>): Promise<v
 
   const domain = extractDomain(url);
   const options: CLIOptions = {
-    maxPages: parseInt(opts.maxPages as string, 10) || 50,
+    maxPages: parseInt(opts.maxPages as string, 10) || 500,
     concurrency: parseInt(opts.concurrency as string, 10) || 3,
     jsRender: false,
     verbose: !!opts.verbose,

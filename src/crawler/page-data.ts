@@ -21,6 +21,9 @@ export interface PageMeta {
   modifiedDate: string | null;
   keywords: string[];
   robots: string | null;
+  googleVerification: string | null;
+  bingVerification: string | null;
+  yandexVerification: string | null;
 }
 
 export interface HeadingNode {
@@ -99,6 +102,7 @@ export interface ExistingGeoFiles {
   tdmrepJson: string | null;
   humansTxt: string | null;
   manifestJson: string | null;
+  bingSiteAuth: string | null;
 }
 
 export interface SiteCrawlResult {

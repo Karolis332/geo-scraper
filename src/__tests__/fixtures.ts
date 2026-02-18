@@ -68,6 +68,7 @@ function createMockGeoFiles(overrides: Partial<ExistingGeoFiles> = {}): Existing
     tdmrepJson: null,
     humansTxt: null,
     manifestJson: null,
+    bingSiteAuth: null,
     ...overrides,
   };
 }
@@ -113,6 +114,9 @@ export function createMockPageData(overrides: Partial<PageData> = {}): PageData 
       modifiedDate: null,
       keywords: [],
       robots: null,
+      googleVerification: null,
+      bingVerification: null,
+      yandexVerification: null,
     },
     content: {
       headings: [{ level: 1, text: 'Test' }],
