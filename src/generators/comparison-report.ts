@@ -41,15 +41,16 @@ export function generateProjectedAudit(before: AuditResult): AuditResult {
   });
 
   // Recalculate scores with same weighting as geo-auditor
-  const weights: Record<string, number> = { critical: 3, high: 2, medium: 1, low: 0.5 };
+  const weights: Record<string, number> = { critical: 3, high: 2, medium: 1, low: 0.5, seo: 1.5 };
   let totalWeightedScore = 0;
   let totalWeightedMax = 0;
 
-  const summary = {
+  const summary: Record<string, { passed: number; total: number }> = {
     critical: { passed: 0, total: 0 },
     high: { passed: 0, total: 0 },
     medium: { passed: 0, total: 0 },
     low: { passed: 0, total: 0 },
+    seo: { passed: 0, total: 0 },
   };
 
   for (const item of projectedItems) {
@@ -69,7 +70,7 @@ export function generateProjectedAudit(before: AuditResult): AuditResult {
     maxPossibleScore: 100,
     grade: scoreToGrade(overallScore),
     items: projectedItems,
-    summary,
+    summary: summary as AuditResult['summary'],
   };
 }
 

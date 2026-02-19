@@ -24,6 +24,7 @@ export interface PageMeta {
   googleVerification: string | null;
   bingVerification: string | null;
   yandexVerification: string | null;
+  viewport: string | null;
 }
 
 export interface HeadingNode {

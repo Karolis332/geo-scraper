@@ -72,5 +72,6 @@ export function extractMeta($: CheerioAPI, url: string): PageMeta {
     googleVerification: getMeta('google-site-verification'),
     bingVerification: getMeta('msvalidate.01'),
     yandexVerification: getMeta('yandex-verification'),
+    viewport: getMeta('viewport'),
   };
 }

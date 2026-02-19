@@ -166,7 +166,7 @@ describe('auditSite', () => {
             ogImage: null, ogType: null, ogSiteName: null, twitterCard: null,
             twitterTitle: null, twitterDescription: null, twitterImage: null,
             author: null, publishedDate: null, modifiedDate: '2025-06-01',
-            keywords: [], robots: null, googleVerification: null, bingVerification: null, yandexVerification: null,
+            keywords: [], robots: null, googleVerification: null, bingVerification: null, yandexVerification: null, viewport: 'width=device-width, initial-scale=1',
           },
           content: {
             headings: [{ level: 1, text: 'Main' }, { level: 2, text: 'Sub' }, { level: 3, text: 'Detail' }],
@@ -197,6 +197,117 @@ describe('auditSite', () => {
       expect(result.overallScore).toBeGreaterThan(70);
       // Should be at least B
       expect(['A+', 'A', 'B']).toContain(result.grade);
+    });
+  });
+
+  describe('SEO checks', () => {
+    it('includes seo category in summary', () => {
+      const result = auditSite(createMockCrawlResult());
+      expect(result.summary).toHaveProperty('seo');
+      expect(result.summary.seo.total).toBeGreaterThan(0);
+    });
+
+    it('audits title tags', () => {
+      const result = auditSite(createMockCrawlResult({
+        pages: [
+          createMockPageData({ meta: { ...createMockPageData().meta, title: 'A Good Title That Is The Right Length For SEO' } }),
+        ],
+      }));
+      const item = result.items.find(i => i.name === 'Title Tags')!;
+      expect(item).toBeDefined();
+      expect(item.category).toBe('seo');
+      expect(item.score).toBeGreaterThan(0);
+    });
+
+    it('flags duplicate title tags', () => {
+      const page1 = createMockPageData({ url: 'https://example.com/', meta: { ...createMockPageData().meta, title: 'Same Title' } });
+      const page2 = createMockPageData({ url: 'https://example.com/about', meta: { ...createMockPageData().meta, title: 'Same Title' } });
+      const result = auditSite(createMockCrawlResult({ pages: [page1, page2] }));
+      const item = result.items.find(i => i.name === 'Title Tags')!;
+      expect(item.details).toContain('duplicate');
+    });
+
+    it('audits image alt text', () => {
+      const result = auditSite(createMockCrawlResult({
+        pages: [createMockPageData({
+          images: [
+            { src: '/img1.jpg', alt: 'A descriptive alt text' },
+            { src: '/img2.jpg', alt: '' },
+          ],
+        })],
+      }));
+      const item = result.items.find(i => i.name === 'Image Alt Text')!;
+      expect(item.score).toBe(50); // 1/2 images with alt
+    });
+
+    it('scores 100 for image alt when no images exist', () => {
+      const result = auditSite(createMockCrawlResult({
+        pages: [createMockPageData({ images: [] })],
+      }));
+      const item = result.items.find(i => i.name === 'Image Alt Text')!;
+      expect(item.score).toBe(100);
+    });
+
+    it('audits internal linking', () => {
+      const result = auditSite(createMockCrawlResult());
+      const item = result.items.find(i => i.name === 'Internal Linking')!;
+      expect(item).toBeDefined();
+      expect(item.category).toBe('seo');
+    });
+
+    it('audits mobile viewport', () => {
+      const result = auditSite(createMockCrawlResult({
+        pages: [createMockPageData({
+          meta: { ...createMockPageData().meta, viewport: 'width=device-width, initial-scale=1' },
+        })],
+      }));
+      const item = result.items.find(i => i.name === 'Mobile Viewport')!;
+      expect(item.score).toBe(100);
+    });
+
+    it('scores 0 for mobile viewport when missing', () => {
+      const result = auditSite(createMockCrawlResult({
+        pages: [createMockPageData({
+          meta: { ...createMockPageData().meta, viewport: null },
+        })],
+      }));
+      const item = result.items.find(i => i.name === 'Mobile Viewport')!;
+      expect(item.score).toBe(0);
+    });
+
+    it('audits HTTPS enforcement', () => {
+      const result = auditSite(createMockCrawlResult({
+        pages: [createMockPageData({ url: 'https://example.com/' })],
+      }));
+      const item = result.items.find(i => i.name === 'HTTPS Enforcement')!;
+      expect(item.score).toBe(100);
+    });
+
+    it('flags non-HTTPS pages', () => {
+      const result = auditSite(createMockCrawlResult({
+        pages: [createMockPageData({ url: 'http://example.com/' })],
+      }));
+      const item = result.items.find(i => i.name === 'HTTPS Enforcement')!;
+      expect(item.score).toBe(0);
+    });
+
+    it('audits broken pages', () => {
+      const result = auditSite(createMockCrawlResult({
+        pages: [
+          createMockPageData({ statusCode: 200 }),
+          createMockPageData({ url: 'https://example.com/broken', statusCode: 404 }),
+        ],
+      }));
+      const item = result.items.find(i => i.name === 'Broken Pages')!;
+      expect(item.score).toBe(50); // 1/2 broken
+    });
+
+    it('scores 100 when no broken pages', () => {
+      const result = auditSite(createMockCrawlResult({
+        pages: [createMockPageData({ statusCode: 200 })],
+      }));
+      const item = result.items.find(i => i.name === 'Broken Pages')!;
+      expect(item.score).toBe(100);
     });
   });
 

@@ -7,7 +7,7 @@ import type { SiteCrawlResult } from '../crawler/page-data.js';
 
 export interface AuditItem {
   name: string;
-  category: 'critical' | 'high' | 'medium' | 'low';
+  category: 'critical' | 'high' | 'medium' | 'low' | 'seo';
   score: number;       // 0-100
   maxScore: number;
   status: 'pass' | 'partial' | 'fail' | 'not_applicable';
@@ -25,6 +25,7 @@ export interface AuditResult {
     high: { passed: number; total: number };
     medium: { passed: number; total: number };
     low: { passed: number; total: number };
+    seo: { passed: number; total: number };
   };
 }
 
@@ -160,8 +161,28 @@ export function auditSite(crawlResult: SiteCrawlResult): AuditResult {
   // 16. FAQ content
   items.push(auditFAQContent(crawlResult));
 
+  // ===== SEO CHECKS =====
+
+  // 17. Title Tag Quality
+  items.push(auditTitleTags(crawlResult));
+
+  // 18. Image Alt Text
+  items.push(auditImageAltText(crawlResult));
+
+  // 19. Internal Linking
+  items.push(auditInternalLinking(crawlResult));
+
+  // 20. Mobile Viewport
+  items.push(auditMobileViewport(crawlResult));
+
+  // 21. HTTPS Enforcement
+  items.push(auditHttps(crawlResult));
+
+  // 22. Broken Pages
+  items.push(auditBrokenPages(crawlResult));
+
   // Calculate scores
-  const weights = { critical: 3, high: 2, medium: 1, low: 0.5 };
+  const weights = { critical: 3, high: 2, medium: 1, low: 0.5, seo: 1.5 };
   let totalWeightedScore = 0;
   let totalWeightedMax = 0;
 
@@ -170,6 +191,7 @@ export function auditSite(crawlResult: SiteCrawlResult): AuditResult {
     high: { passed: 0, total: 0 },
     medium: { passed: 0, total: 0 },
     low: { passed: 0, total: 0 },
+    seo: { passed: 0, total: 0 },
   };
 
   for (const item of items) {
@@ -861,6 +883,268 @@ function auditSearchIndexing(crawlResult: SiteCrawlResult): AuditItem {
     status: score === 100 ? 'pass' : score >= 50 ? 'partial' : 'fail',
     details,
     recommendation,
+  };
+}
+
+// ===== SEO AUDIT FUNCTIONS =====
+
+function auditTitleTags(crawlResult: SiteCrawlResult): AuditItem {
+  const { pages } = crawlResult;
+  if (pages.length === 0) {
+    return {
+      name: 'Title Tags',
+      category: 'seo',
+      score: 0,
+      maxScore: 100,
+      status: 'not_applicable',
+      details: 'No pages crawled',
+      recommendation: 'Crawl pages to assess title tags',
+    };
+  }
+
+  let withTitle = 0;
+  let goodLength = 0;
+  const titles = new Set<string>();
+  const duplicates = new Set<string>();
+
+  for (const page of pages) {
+    const title = page.meta.title;
+    if (title && title.length > 0) {
+      withTitle++;
+      if (title.length >= 30 && title.length <= 70) goodLength++;
+      if (titles.has(title)) duplicates.add(title);
+      titles.add(title);
+    }
+  }
+
+  const coverage = withTitle / pages.length;
+  const lengthRatio = withTitle > 0 ? goodLength / withTitle : 0;
+  const uniqueRatio = pages.length > 1 ? 1 - (duplicates.size / pages.length) : 1;
+
+  // Coverage (40pts) + length quality (30pts) + uniqueness (30pts)
+  const score = Math.min(100, Math.round(
+    coverage * 40 +
+    lengthRatio * 30 +
+    uniqueRatio * 30
+  ));
+
+  return {
+    name: 'Title Tags',
+    category: 'seo',
+    score,
+    maxScore: 100,
+    status: score >= 70 ? 'pass' : score >= 40 ? 'partial' : 'fail',
+    details: `${withTitle}/${pages.length} pages have titles, ${goodLength} with optimal length (30-70 chars), ${duplicates.size} duplicate titles`,
+    recommendation: score < 70
+      ? 'Ensure every page has a unique title tag between 30-70 characters. Include primary keyword near the beginning.'
+      : 'Title tags are well-optimized',
+  };
+}
+
+function auditImageAltText(crawlResult: SiteCrawlResult): AuditItem {
+  const { pages } = crawlResult;
+  let totalImages = 0;
+  let withAlt = 0;
+
+  for (const page of pages) {
+    for (const img of page.images) {
+      totalImages++;
+      if (img.alt && img.alt.trim().length > 0) withAlt++;
+    }
+  }
+
+  if (totalImages === 0) {
+    return {
+      name: 'Image Alt Text',
+      category: 'seo',
+      score: 100,
+      maxScore: 100,
+      status: 'pass',
+      details: 'No images found on crawled pages',
+      recommendation: 'No images to check — not applicable',
+    };
+  }
+
+  const ratio = withAlt / totalImages;
+  const score = Math.round(ratio * 100);
+
+  return {
+    name: 'Image Alt Text',
+    category: 'seo',
+    score,
+    maxScore: 100,
+    status: score >= 80 ? 'pass' : score >= 50 ? 'partial' : 'fail',
+    details: `${withAlt}/${totalImages} images have alt text (${Math.round(ratio * 100)}%)`,
+    recommendation: score < 80
+      ? 'Add descriptive alt text to all images. Alt text helps search engines and AI models understand image content.'
+      : 'Good image alt text coverage',
+  };
+}
+
+function auditInternalLinking(crawlResult: SiteCrawlResult): AuditItem {
+  const { pages } = crawlResult;
+  if (pages.length === 0) {
+    return {
+      name: 'Internal Linking',
+      category: 'seo',
+      score: 0,
+      maxScore: 100,
+      status: 'not_applicable',
+      details: 'No pages crawled',
+      recommendation: 'Crawl pages to assess internal linking',
+    };
+  }
+
+  // Build inbound link map
+  const pageUrls = new Set(pages.map(p => p.url));
+  const inboundCount = new Map<string, number>();
+  for (const url of pageUrls) inboundCount.set(url, 0);
+
+  let totalOutbound = 0;
+  for (const page of pages) {
+    for (const link of page.internalLinks) {
+      totalOutbound++;
+      if (inboundCount.has(link)) {
+        inboundCount.set(link, (inboundCount.get(link) || 0) + 1);
+      }
+    }
+  }
+
+  const avgLinksPerPage = pages.length > 0 ? totalOutbound / pages.length : 0;
+  const orphanPages = [...inboundCount.entries()].filter(([, count]) => count === 0);
+  // Exclude homepage from orphan check (it's the entry point)
+  const nonHomeOrphans = orphanPages.filter(([url]) => {
+    try { return new URL(url).pathname !== '/'; } catch { return true; }
+  });
+
+  const orphanRatio = pages.length > 1 ? nonHomeOrphans.length / (pages.length - 1) : 0;
+
+  // Avg links quality (50pts) + orphan penalty (50pts)
+  const linkScore = Math.min(50, avgLinksPerPage >= 5 ? 50 : Math.round((avgLinksPerPage / 5) * 50));
+  const orphanScore = Math.round((1 - orphanRatio) * 50);
+  const score = Math.min(100, linkScore + orphanScore);
+
+  return {
+    name: 'Internal Linking',
+    category: 'seo',
+    score,
+    maxScore: 100,
+    status: score >= 70 ? 'pass' : score >= 40 ? 'partial' : 'fail',
+    details: `Avg ${avgLinksPerPage.toFixed(1)} internal links/page, ${nonHomeOrphans.length} orphan pages (no inbound links)`,
+    recommendation: score < 70
+      ? 'Improve internal linking: add contextual links between related pages and ensure no pages are orphaned (unreachable from other pages).'
+      : 'Internal linking structure is healthy',
+  };
+}
+
+function auditMobileViewport(crawlResult: SiteCrawlResult): AuditItem {
+  const { pages } = crawlResult;
+  if (pages.length === 0) {
+    return {
+      name: 'Mobile Viewport',
+      category: 'seo',
+      score: 0,
+      maxScore: 100,
+      status: 'not_applicable',
+      details: 'No pages crawled',
+      recommendation: 'Crawl pages to assess mobile viewport',
+    };
+  }
+
+  let withViewport = 0;
+  for (const page of pages) {
+    if (page.meta.viewport) withViewport++;
+  }
+
+  const coverage = withViewport / pages.length;
+  const score = Math.round(coverage * 100);
+
+  return {
+    name: 'Mobile Viewport',
+    category: 'seo',
+    score,
+    maxScore: 100,
+    status: coverage >= 0.9 ? 'pass' : coverage >= 0.5 ? 'partial' : 'fail',
+    details: `${withViewport}/${pages.length} pages have a viewport meta tag`,
+    recommendation: score < 90
+      ? 'Add <meta name="viewport" content="width=device-width, initial-scale=1"> to all pages for mobile-friendly rendering.'
+      : 'Mobile viewport is properly configured',
+  };
+}
+
+function auditHttps(crawlResult: SiteCrawlResult): AuditItem {
+  const { pages } = crawlResult;
+  if (pages.length === 0) {
+    return {
+      name: 'HTTPS Enforcement',
+      category: 'seo',
+      score: 0,
+      maxScore: 100,
+      status: 'not_applicable',
+      details: 'No pages crawled',
+      recommendation: 'Crawl pages to assess HTTPS usage',
+    };
+  }
+
+  let httpsCount = 0;
+  const nonHttpsUrls: string[] = [];
+
+  for (const page of pages) {
+    if (page.url.startsWith('https://')) {
+      httpsCount++;
+    } else {
+      nonHttpsUrls.push(page.url);
+    }
+  }
+
+  const ratio = httpsCount / pages.length;
+  const score = Math.round(ratio * 100);
+
+  return {
+    name: 'HTTPS Enforcement',
+    category: 'seo',
+    score,
+    maxScore: 100,
+    status: ratio === 1 ? 'pass' : ratio >= 0.8 ? 'partial' : 'fail',
+    details: ratio === 1
+      ? 'All pages served over HTTPS'
+      : `${httpsCount}/${pages.length} pages use HTTPS. Non-HTTPS: ${nonHttpsUrls.slice(0, 3).join(', ')}${nonHttpsUrls.length > 3 ? '...' : ''}`,
+    recommendation: ratio < 1
+      ? 'Migrate all pages to HTTPS. Search engines penalize non-HTTPS sites and browsers show security warnings.'
+      : 'All pages are served securely over HTTPS',
+  };
+}
+
+function auditBrokenPages(crawlResult: SiteCrawlResult): AuditItem {
+  const { pages } = crawlResult;
+  if (pages.length === 0) {
+    return {
+      name: 'Broken Pages',
+      category: 'seo',
+      score: 0,
+      maxScore: 100,
+      status: 'not_applicable',
+      details: 'No pages crawled',
+      recommendation: 'Crawl pages to check for broken pages',
+    };
+  }
+
+  const brokenPages = pages.filter(p => p.statusCode < 200 || p.statusCode >= 400);
+  const ratio = brokenPages.length / pages.length;
+  const score = Math.round((1 - ratio) * 100);
+
+  return {
+    name: 'Broken Pages',
+    category: 'seo',
+    score,
+    maxScore: 100,
+    status: brokenPages.length === 0 ? 'pass' : ratio <= 0.1 ? 'partial' : 'fail',
+    details: brokenPages.length === 0
+      ? `All ${pages.length} crawled pages returned successful status codes`
+      : `${brokenPages.length}/${pages.length} pages returned error status codes: ${brokenPages.slice(0, 3).map(p => `${p.url} (${p.statusCode})`).join(', ')}${brokenPages.length > 3 ? '...' : ''}`,
+    recommendation: brokenPages.length > 0
+      ? 'Fix or remove broken pages (4xx/5xx status codes). Broken pages waste crawl budget and harm user experience.'
+      : 'No broken pages detected',
   };
 }
 

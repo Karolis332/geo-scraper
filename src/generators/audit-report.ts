@@ -26,6 +26,9 @@ interface ReportStrings {
   mediumBadge: string;
   low: string;
   lowBadge: string;
+  seo: string;
+  seoBadge: string;
+  seoChecks: string;
   actionItemsTitle: string;
   actionItemsIntro: string;
   actionCurrentScore: string;
@@ -59,6 +62,9 @@ const STRINGS_EN: ReportStrings = {
   mediumBadge: 'medium',
   low: 'Low Priority',
   lowBadge: 'low',
+  seo: 'SEO',
+  seoBadge: 'seo',
+  seoChecks: 'SEO Checks',
   actionItemsTitle: 'Your Action Items',
   actionItemsIntro: 'The items below <strong>cannot be auto-generated</strong> &mdash; they require content changes, configuration updates, or development work on your website. We&rsquo;ve sorted them by impact so you can prioritize what matters most.',
   actionCurrentScore: 'Current score',
@@ -100,6 +106,9 @@ const STRINGS_LT: ReportStrings = {
   mediumBadge: 'vidutinis',
   low: 'Žemas prioritetas',
   lowBadge: 'žemas',
+  seo: 'SEO',
+  seoBadge: 'seo',
+  seoChecks: 'SEO patikrinimai',
   actionItemsTitle: 'Jūsų veiksmai',
   actionItemsIntro: 'Šie punktai <strong>negali būti sugeneruoti automatiškai</strong> &mdash; jiems reikia turinio pakeitimų, konfigūracijos atnaujinimų arba programavimo darbų jūsų svetainėje. Surikiavome pagal svarbą, kad galėtumėte nustatyti prioritetus.',
   actionCurrentScore: 'Dabartinis balas',
@@ -142,6 +151,12 @@ const ITEM_NAMES_LT: Record<string, string> = {
   'humans.txt': 'humans.txt',
   'FAQ Content': 'DUK turinys',
   'Search Engine Indexing': 'Paieškos variklių indeksavimas',
+  'Title Tags': 'Pavadinimo žymės',
+  'Image Alt Text': 'Paveikslėlių alt tekstas',
+  'Internal Linking': 'Vidinis susiejimas',
+  'Mobile Viewport': 'Mobilusis rodymo laukas',
+  'HTTPS Enforcement': 'HTTPS užtikrinimas',
+  'Broken Pages': 'Neveikiantys puslapiai',
 };
 
 /** Map of audit item recommendations → Lithuanian translations */
@@ -250,6 +265,38 @@ const ITEM_RECS_LT: Record<string, string> = {
     'Jūsų svetainė greičiausiai neindeksuota paieškos variklių. Nustatykite Google Search Console ir Bing Webmaster Tools, pridėkite Sitemap direktyvą į robots.txt ir pašalinkite noindex žymes',
   'Your site is likely not indexed by search engines. Set up Google Search Console and Bing Webmaster Tools, add a Sitemap directive to robots.txt, set canonical URLs, and remove any noindex tags':
     'Jūsų svetainė greičiausiai neindeksuota paieškos variklių. Nustatykite Google Search Console ir Bing Webmaster Tools, pridėkite Sitemap direktyvą į robots.txt, nustatykite canonical URL ir pašalinkite noindex žymes',
+  // Title Tags
+  'Ensure every page has a unique title tag between 30-70 characters. Include primary keyword near the beginning.':
+    'Įsitikinkite, kad kiekvienas puslapis turi unikalią pavadinimo žymą tarp 30-70 simbolių. Įtraukite pagrindinį raktažodį pradžioje.',
+  'Title tags are well-optimized':
+    'Pavadinimo žymės gerai optimizuotos',
+  // Image Alt Text
+  'Add descriptive alt text to all images. Alt text helps search engines and AI models understand image content.':
+    'Pridėkite aprašomąjį alt tekstą visiems paveikslėliams. Alt tekstas padeda paieškos varikliams ir DI modeliams suprasti paveikslėlių turinį.',
+  'Good image alt text coverage':
+    'Geras paveikslėlių alt teksto padengimas',
+  'No images to check — not applicable':
+    'Nėra paveikslėlių patikrinimui — netaikoma',
+  // Internal Linking
+  'Improve internal linking: add contextual links between related pages and ensure no pages are orphaned (unreachable from other pages).':
+    'Pagerinkite vidinį susiejimą: pridėkite kontekstinius ryšius tarp susijusių puslapių ir užtikrinkite, kad nėra „našlaičių" puslapių (nepasiekiamų iš kitų puslapių).',
+  'Internal linking structure is healthy':
+    'Vidinio susiejimo struktūra sveika',
+  // Mobile Viewport
+  'Add <meta name="viewport" content="width=device-width, initial-scale=1"> to all pages for mobile-friendly rendering.':
+    'Pridėkite <meta name="viewport" content="width=device-width, initial-scale=1"> į visus puslapius mobiliajam atvaizdavimui.',
+  'Mobile viewport is properly configured':
+    'Mobilusis rodymo laukas tinkamai sukonfigūruotas',
+  // HTTPS
+  'Migrate all pages to HTTPS. Search engines penalize non-HTTPS sites and browsers show security warnings.':
+    'Perkelkite visus puslapius į HTTPS. Paieškos varikliai baudžia ne-HTTPS svetaines, o naršyklės rodo saugumo įspėjimus.',
+  'All pages are served securely over HTTPS':
+    'Visi puslapiai saugiai aptarnaujami per HTTPS',
+  // Broken Pages
+  'Fix or remove broken pages (4xx/5xx status codes). Broken pages waste crawl budget and harm user experience.':
+    'Pataisykite arba pašalinkite neveikiančius puslapius (4xx/5xx būsenos kodai). Neveikiantys puslapiai švaisto nuskaitymo biudžetą ir kenkia naudotojo patirčiai.',
+  'No broken pages detected':
+    'Neveikiančių puslapių nerasta',
 };
 
 /** Map of audit item details patterns → Lithuanian translations */
@@ -272,6 +319,8 @@ const ITEM_DETAILS_LT: Record<string, string> = {
   'No AI crawlers are blocked in robots.txt': 'Jokie DI robotai nėra blokuojami robots.txt',
   'No max-snippet or max-image-preview directives found': 'Nerasta max-snippet arba max-image-preview direktyvų',
   'No indexing signals found': 'Nerasta indeksavimo signalų',
+  'No images found on crawled pages': 'Nuskaitytuose puslapiuose nerasta paveikslėlių',
+  'All pages served over HTTPS': 'Visi puslapiai aptarnaujami per HTTPS',
 };
 
 /** Client-facing action guides — professional, specific instructions per item */
@@ -307,6 +356,18 @@ const CLIENT_ACTION_GUIDES: Record<string, { en: string; lt: string }> = {
   'FAQ Content': {
     en: 'No FAQ content was detected on your site. FAQ pages have the highest AI citation probability of any content type. Create a dedicated FAQ page (or FAQ sections on key service pages) with real questions your customers ask and detailed answers. We will automatically generate FAQPage JSON-LD schema for detected FAQ content.',
     lt: 'Jūsų svetainėje nerasta DUK turinio. DUK puslapiai turi didžiausią DI citavimo tikimybę iš visų turinio tipų. Sukurkite atskirą DUK puslapį (arba DUK skyrius pagrindiniuose paslaugų puslapiuose) su tikrais klausimais, kuriuos užduoda jūsų klientai, ir išsamiais atsakymais. Mes automatiškai sugeneruosime FAQPage JSON-LD schemą aptiktam DUK turiniui.',
+  },
+  'Title Tags': {
+    en: 'Some pages are missing title tags, have duplicate titles, or titles outside the optimal 30-70 character range. Each page should have a unique, descriptive title that includes the primary keyword near the beginning. Good titles improve click-through rates from search results and help AI models identify page topics.',
+    lt: 'Kai kuriuose puslapiuose trūksta pavadinimo žymų, yra pasikartojančių pavadinimų arba pavadinimų ilgis neatitinka optimalaus 30-70 simbolių diapazono. Kiekvienas puslapis turi turėti unikalų, aprašomąjį pavadinimą su pagrindiniu raktažodžiu pradžioje. Geri pavadinimai pagerina paspaudimų rodiklį paieškos rezultatuose ir padeda DI modeliams atpažinti puslapio temas.',
+  },
+  'Image Alt Text': {
+    en: 'Many images on your site are missing alt text. Alt text provides a text description of images for search engines, screen readers, and AI models that cannot process images directly. Add concise, descriptive alt text to every image describing what the image shows.',
+    lt: 'Daugelyje jūsų svetainės paveikslėlių trūksta alt teksto. Alt tekstas suteikia tekstinį paveikslėlių aprašymą paieškos varikliams, ekrano skaitytuvams ir DI modeliams, kurie negali tiesiogiai apdoroti paveikslėlių. Pridėkite glaustą, aprašomąjį alt tekstą kiekvienam paveikslėliui, apibūdinantį tai, kas vaizduojama.',
+  },
+  'Internal Linking': {
+    en: 'Your site has weak internal linking — some pages are orphaned (no other page links to them) or pages have too few internal links. Add contextual links between related pages to help search engines discover all your content and understand topic relationships. Aim for at least 3-5 internal links per page.',
+    lt: 'Jūsų svetainėje silpnas vidinis susiejimas — kai kurie puslapiai yra „našlaičiai" (joks kitas puslapis į juos nenurodo) arba puslapiuose per mažai vidinių nuorodų. Pridėkite kontekstinius ryšius tarp susijusių puslapių, kad padėtumėte paieškos varikliams aptikti visą jūsų turinį ir suprasti temų ryšius. Siekite bent 3-5 vidinių nuorodų puslapyje.',
   },
   'Search Engine Indexing': {
     en: `Your site is missing key search engine indexing signals. Without these, search engines and AI crawlers may not discover your content. Here's what to do:
@@ -413,6 +474,17 @@ function translateItemDetails(details: string, lang: string): string {
   translated = translated.replace(/Canonical URLs on only/, 'Canonical URL tik');
   translated = translated.replace(/No canonical URLs set/, 'Canonical URL nenustatyti');
   translated = translated.replace(/(\d+)\/(\d+) pages\)/, '$1/$2 puslapių)');
+  // SEO detail patterns
+  translated = translated.replace(/(\d+)\/(\d+) pages have titles/, '$1/$2 puslapių turi pavadinimus');
+  translated = translated.replace(/with optimal length/, 'su optimaliuoju ilgiu');
+  translated = translated.replace(/duplicate titles/, 'pasikartojančių pavadinimų');
+  translated = translated.replace(/(\d+)\/(\d+) images have alt text/, '$1/$2 paveikslėlių turi alt tekstą');
+  translated = translated.replace(/Avg ([\d.]+) internal links\/page/, 'Vid. $1 vidinių nuorodų/puslapyje');
+  translated = translated.replace(/orphan pages \(no inbound links\)/, 'našlaičių puslapių (be įeinančių nuorodų)');
+  translated = translated.replace(/(\d+)\/(\d+) pages have a viewport meta tag/, '$1/$2 puslapių turi viewport meta žymą');
+  translated = translated.replace(/(\d+)\/(\d+) pages use HTTPS/, '$1/$2 puslapių naudoja HTTPS');
+  translated = translated.replace(/All (\d+) crawled pages returned successful status codes/, 'Visi $1 nuskaityti puslapiai grąžino sėkmingus būsenos kodus');
+  translated = translated.replace(/(\d+)\/(\d+) pages returned error status codes/, '$1/$2 puslapių grąžino klaidų būsenos kodus');
   return translated;
 }
 
@@ -423,6 +495,7 @@ function translateCategory(category: string, lang: string): string {
     high: 'aukštas',
     medium: 'vidutinis',
     low: 'žemas',
+    seo: 'seo',
   };
   return map[category] || category;
 }
@@ -559,6 +632,7 @@ export function generateAuditReportHtml(
     .badge-high { background: rgba(251,191,36,0.12); color: var(--yellow); }
     .badge-medium { background: rgba(96,165,250,0.12); color: var(--blue); }
     .badge-low { background: rgba(161,161,170,0.12); color: var(--text-dim); }
+    .badge-seo { background: rgba(45,212,191,0.12); color: #2dd4bf; }
     .audit-item {
       background: var(--surface);
       border: 1px solid var(--border);
@@ -773,6 +847,10 @@ export function generateAuditReportHtml(
       <div class="value">${audit.summary.high.passed}/${audit.summary.high.total}</div>
     </div>
     <div class="stat-card">
+      <div class="label">${s.seoChecks}</div>
+      <div class="value">${audit.summary.seo.passed}/${audit.summary.seo.total}</div>
+    </div>
+    <div class="stat-card">
       <div class="label">${s.pagesCrawledLabel}</div>
       <div class="value">${crawlStats.totalPages}</div>
     </div>
@@ -784,6 +862,7 @@ ${renderCategory(s.critical, 'critical', audit.items, lang)}
 ${renderCategory(s.high, 'high', audit.items, lang)}
 ${renderCategory(s.medium, 'medium', audit.items, lang)}
 ${renderCategory(s.low, 'low', audit.items, lang)}
+${renderCategory(s.seo, 'seo', audit.items, lang)}
 
 ${clientActionItems.length > 0 ? `
   <div class="action-items">
@@ -917,7 +996,7 @@ const AUTO_GENERATED_ITEMS = new Set([
 ]);
 
 /** Weight order for sorting: critical first, then high, medium, low */
-const CATEGORY_ORDER: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+const CATEGORY_ORDER: Record<string, number> = { critical: 0, high: 1, seo: 2, medium: 3, low: 4 };
 
 function getClientActionItems(audit: AuditResult): AuditItem[] {
   return audit.items

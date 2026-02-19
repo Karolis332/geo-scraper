@@ -39,6 +39,13 @@ export function createMockAuditResult(overrides: Partial<AuditResult> = {}): Aud
     // Low (2)
     createMockAuditItem({ name: 'humans.txt', category: 'low' }),
     createMockAuditItem({ name: 'FAQ Content', category: 'low' }),
+    // SEO (6)
+    createMockAuditItem({ name: 'Title Tags', category: 'seo' as AuditItem['category'] }),
+    createMockAuditItem({ name: 'Image Alt Text', category: 'seo' as AuditItem['category'] }),
+    createMockAuditItem({ name: 'Internal Linking', category: 'seo' as AuditItem['category'] }),
+    createMockAuditItem({ name: 'Mobile Viewport', category: 'seo' as AuditItem['category'] }),
+    createMockAuditItem({ name: 'HTTPS Enforcement', category: 'seo' as AuditItem['category'] }),
+    createMockAuditItem({ name: 'Broken Pages', category: 'seo' as AuditItem['category'] }),
   ];
 
   return {
@@ -51,6 +58,7 @@ export function createMockAuditResult(overrides: Partial<AuditResult> = {}): Aud
       high: { passed: 0, total: 6 },
       medium: { passed: 0, total: 5 },
       low: { passed: 0, total: 2 },
+      seo: { passed: 0, total: 6 },
     },
     ...overrides,
   };
@@ -117,6 +125,7 @@ export function createMockPageData(overrides: Partial<PageData> = {}): PageData 
       googleVerification: null,
       bingVerification: null,
       yandexVerification: null,
+      viewport: null,
     },
     content: {
       headings: [{ level: 1, text: 'Test' }],
