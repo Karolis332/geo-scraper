@@ -5,6 +5,8 @@
 
 import type { SiteCrawlResult } from '../crawler/page-data.js';
 
+export const MAX_AFFECTED_URLS = 20;
+
 export interface AuditItem {
   name: string;
   category: 'critical' | 'high' | 'medium' | 'low' | 'seo';
@@ -13,6 +15,7 @@ export interface AuditItem {
   status: 'pass' | 'partial' | 'fail' | 'not_applicable';
   details: string;
   recommendation: string;
+  affectedUrls?: string[];
 }
 
 export interface AuditResult {
@@ -341,6 +344,7 @@ function auditStructuredData(crawlResult: SiteCrawlResult): AuditItem {
   let pagesWithJsonLd = 0;
   let totalJsonLdItems = 0;
   const schemaTypes = new Set<string>();
+  const affectedUrls: string[] = [];
 
   for (const page of pages) {
     if (page.existingStructuredData.jsonLd.length > 0) {
@@ -350,6 +354,8 @@ function auditStructuredData(crawlResult: SiteCrawlResult): AuditItem {
         const type = (item['@type'] as string) || 'unknown';
         schemaTypes.add(type);
       }
+    } else {
+      if (affectedUrls.length < MAX_AFFECTED_URLS) affectedUrls.push(page.url);
     }
   }
 
@@ -362,6 +368,7 @@ function auditStructuredData(crawlResult: SiteCrawlResult): AuditItem {
       status: 'fail',
       details: 'No JSON-LD structured data found on any page',
       recommendation: 'Add JSON-LD Schema.org markup: Organization on homepage, Article on blog posts, FAQPage on FAQ sections, Product on product pages',
+      affectedUrls,
     };
   }
 
@@ -386,16 +393,22 @@ function auditStructuredData(crawlResult: SiteCrawlResult): AuditItem {
       : coverage < 0.5
         ? 'Increase JSON-LD coverage — aim for structured data on every significant page'
         : 'Good structured data coverage',
+    ...(affectedUrls.length > 0 ? { affectedUrls } : {}),
   };
 }
 
 function auditServerRendering(crawlResult: SiteCrawlResult): AuditItem {
   const { pages } = crawlResult;
   let ssrPages = 0;
+  const affectedUrls: string[] = [];
 
   for (const page of pages) {
     // If we got meaningful content via Cheerio (no JS), it's server-rendered
-    if (page.content.wordCount > 50) ssrPages++;
+    if (page.content.wordCount > 50) {
+      ssrPages++;
+    } else {
+      if (affectedUrls.length < MAX_AFFECTED_URLS) affectedUrls.push(page.url);
+    }
   }
 
   const coverage = pages.length > 0 ? ssrPages / pages.length : 0;
@@ -411,6 +424,7 @@ function auditServerRendering(crawlResult: SiteCrawlResult): AuditItem {
     recommendation: coverage < 0.8
       ? 'AI crawlers cannot execute JavaScript — ensure content is in initial HTML response via SSR/SSG'
       : 'Content renders without JavaScript — good!',
+    ...(affectedUrls.length > 0 ? { affectedUrls } : {}),
   };
 }
 
@@ -451,10 +465,13 @@ function auditAiPolicy(aiTxt: string | null, aiJson: string | null): AuditItem {
 function auditMetaDescriptions(crawlResult: SiteCrawlResult): AuditItem {
   const { pages } = crawlResult;
   let withDescription = 0;
+  const affectedUrls: string[] = [];
 
   for (const page of pages) {
     if (page.meta.description && page.meta.description.length >= 30) {
       withDescription++;
+    } else {
+      if (affectedUrls.length < MAX_AFFECTED_URLS) affectedUrls.push(page.url);
     }
   }
 
@@ -471,12 +488,14 @@ function auditMetaDescriptions(crawlResult: SiteCrawlResult): AuditItem {
     recommendation: coverage < 0.8
       ? 'Add meaningful meta descriptions to all pages — AI engines use these for summaries and citations'
       : 'Good meta description coverage',
+    ...(affectedUrls.length > 0 ? { affectedUrls } : {}),
   };
 }
 
 function auditHeadingHierarchy(crawlResult: SiteCrawlResult): AuditItem {
   const { pages } = crawlResult;
   let correctHierarchy = 0;
+  const affectedUrls: string[] = [];
 
   for (const page of pages) {
     const headings = page.content.headings;
@@ -494,7 +513,11 @@ function auditHeadingHierarchy(crawlResult: SiteCrawlResult): AuditItem {
       }
     }
 
-    if (hasH1 && h1Count === 1 && noSkips) correctHierarchy++;
+    if (hasH1 && h1Count === 1 && noSkips) {
+      correctHierarchy++;
+    } else {
+      if (affectedUrls.length < MAX_AFFECTED_URLS) affectedUrls.push(page.url);
+    }
   }
 
   const pagesWithHeadings = pages.filter(p => p.content.headings.length > 0).length;
@@ -511,15 +534,21 @@ function auditHeadingHierarchy(crawlResult: SiteCrawlResult): AuditItem {
     recommendation: coverage < 0.8
       ? 'Fix heading hierarchy: single H1, no skipped levels (H1>H2>H3). LLMs use headings to understand content structure.'
       : 'Heading hierarchy is clean',
+    ...(affectedUrls.length > 0 ? { affectedUrls } : {}),
   };
 }
 
 function auditOpenGraph(crawlResult: SiteCrawlResult): AuditItem {
   const { pages } = crawlResult;
   let withOG = 0;
+  const affectedUrls: string[] = [];
 
   for (const page of pages) {
-    if (page.meta.ogTitle && page.meta.ogDescription) withOG++;
+    if (page.meta.ogTitle && page.meta.ogDescription) {
+      withOG++;
+    } else {
+      if (affectedUrls.length < MAX_AFFECTED_URLS) affectedUrls.push(page.url);
+    }
   }
 
   const coverage = pages.length > 0 ? withOG / pages.length : 0;
@@ -535,6 +564,7 @@ function auditOpenGraph(crawlResult: SiteCrawlResult): AuditItem {
     recommendation: coverage < 0.8
       ? 'Add og:title and og:description to all pages for rich previews in AI responses'
       : 'Good Open Graph coverage',
+    ...(affectedUrls.length > 0 ? { affectedUrls } : {}),
   };
 }
 
@@ -542,6 +572,7 @@ function auditAiContentDirectives(crawlResult: SiteCrawlResult): AuditItem {
   const { pages } = crawlResult;
   let withMaxSnippet = 0;
   let withMaxImagePreview = 0;
+  const affectedUrls: string[] = [];
 
   for (const page of pages) {
     const robots = page.meta.robots?.toLowerCase() || '';
@@ -549,8 +580,13 @@ function auditAiContentDirectives(crawlResult: SiteCrawlResult): AuditItem {
     const xRobotsTag = (page.responseHeaders['x-robots-tag'] || '').toLowerCase();
     const combined = `${robots} ${xRobotsTag}`;
 
-    if (combined.includes('max-snippet')) withMaxSnippet++;
-    if (combined.includes('max-image-preview')) withMaxImagePreview++;
+    const hasSnippet = combined.includes('max-snippet');
+    const hasImagePreview = combined.includes('max-image-preview');
+    if (hasSnippet) withMaxSnippet++;
+    if (hasImagePreview) withMaxImagePreview++;
+    if (!hasSnippet && !hasImagePreview) {
+      if (affectedUrls.length < MAX_AFFECTED_URLS) affectedUrls.push(page.url);
+    }
   }
 
   const hasDirectives = withMaxSnippet > 0 || withMaxImagePreview > 0;
@@ -578,6 +614,7 @@ function auditAiContentDirectives(crawlResult: SiteCrawlResult): AuditItem {
       : coverage < 0.8
         ? 'Increase coverage of max-snippet and max-image-preview across all pages'
         : 'AI content directives are well-configured',
+    ...(affectedUrls.length > 0 ? { affectedUrls } : {}),
   };
 }
 
@@ -701,6 +738,7 @@ function auditContentFreshness(crawlResult: SiteCrawlResult): AuditItem {
   let pagesWithDate = 0;
   let pagesRecent = 0;
   let pagesWithJsonLdDate = 0;
+  const affectedUrls: string[] = [];
 
   for (const page of pages) {
     const dateStr = page.meta.modifiedDate || page.meta.publishedDate || page.lastModified;
@@ -710,6 +748,8 @@ function auditContentFreshness(crawlResult: SiteCrawlResult): AuditItem {
       if (!isNaN(ts) && (now - ts) < twelveMonthsMs) {
         pagesRecent++;
       }
+    } else {
+      if (affectedUrls.length < MAX_AFFECTED_URLS) affectedUrls.push(page.url);
     }
 
     // Check for dateModified in JSON-LD
@@ -742,6 +782,7 @@ function auditContentFreshness(crawlResult: SiteCrawlResult): AuditItem {
     recommendation: score < 60
       ? 'Add dateModified to JSON-LD and keep content updated — AI-cited content is 25.7% fresher than traditional results'
       : 'Content freshness signals are strong',
+    ...(affectedUrls.length > 0 ? { affectedUrls } : {}),
   };
 }
 
@@ -762,12 +803,16 @@ function auditContentDepth(crawlResult: SiteCrawlResult): AuditItem {
   let thinPages = 0;      // <300 words
   let substantivePages = 0; // >500 words
   let wellStructured = 0;   // >500 words AND >=3 headings
+  const affectedUrls: string[] = [];
 
   for (const page of pages) {
     const words = page.content.wordCount;
     const headingCount = page.content.headings.length;
 
-    if (words < 300) thinPages++;
+    if (words < 300) {
+      thinPages++;
+      if (affectedUrls.length < MAX_AFFECTED_URLS) affectedUrls.push(page.url);
+    }
     if (words > 500) {
       substantivePages++;
       if (headingCount >= 3) wellStructured++;
@@ -795,6 +840,7 @@ function auditContentDepth(crawlResult: SiteCrawlResult): AuditItem {
     recommendation: score < 60
       ? 'Add more substantive content (>500 words) with clear heading structure (>=3 headings). AI engines chunk content by paragraphs under headings.'
       : 'Content depth and structure are solid',
+    ...(affectedUrls.length > 0 ? { affectedUrls } : {}),
   };
 }
 
@@ -803,6 +849,7 @@ function auditSearchIndexing(crawlResult: SiteCrawlResult): AuditItem {
   let score = 0;
   const signals: string[] = [];
   const missing: string[] = [];
+  const affectedUrls: string[] = [];
 
   // 1. Google Search Console verification tag (20 pts)
   const hasGoogleVerification = pages.some(p => p.meta.googleVerification);
@@ -847,6 +894,9 @@ function auditSearchIndexing(crawlResult: SiteCrawlResult): AuditItem {
     signals.push('No noindex pages');
   } else {
     missing.push(`${noindexPages.length} page(s) with noindex`);
+    for (const p of noindexPages) {
+      if (affectedUrls.length < MAX_AFFECTED_URLS) affectedUrls.push(p.url);
+    }
   }
 
   // 5. Canonical URLs properly set (20 pts)
@@ -858,8 +908,14 @@ function auditSearchIndexing(crawlResult: SiteCrawlResult): AuditItem {
   } else if (canonicalCoverage > 0) {
     score += Math.round(20 * canonicalCoverage);
     missing.push(`Canonical URLs on only ${pagesWithCanonical.length}/${pages.length} pages`);
+    for (const p of pages) {
+      if (!p.meta.canonical && affectedUrls.length < MAX_AFFECTED_URLS) affectedUrls.push(p.url);
+    }
   } else {
     missing.push('No canonical URLs set');
+    for (const p of pages) {
+      if (affectedUrls.length < MAX_AFFECTED_URLS) affectedUrls.push(p.url);
+    }
   }
 
   const details = signals.length > 0
@@ -875,6 +931,9 @@ function auditSearchIndexing(crawlResult: SiteCrawlResult): AuditItem {
     recommendation = `Your site is likely not indexed by search engines. Set up Google Search Console and Bing Webmaster Tools, add a Sitemap directive to robots.txt, set canonical URLs, and remove any noindex tags`;
   }
 
+  // Deduplicate affected URLs (a page could be added for both noindex and missing canonical)
+  const uniqueAffected = [...new Set(affectedUrls)].slice(0, MAX_AFFECTED_URLS);
+
   return {
     name: 'Search Engine Indexing',
     category: 'critical',
@@ -883,6 +942,7 @@ function auditSearchIndexing(crawlResult: SiteCrawlResult): AuditItem {
     status: score === 100 ? 'pass' : score >= 50 ? 'partial' : 'fail',
     details,
     recommendation,
+    ...(uniqueAffected.length > 0 ? { affectedUrls: uniqueAffected } : {}),
   };
 }
 
@@ -906,14 +966,30 @@ function auditTitleTags(crawlResult: SiteCrawlResult): AuditItem {
   let goodLength = 0;
   const titles = new Set<string>();
   const duplicates = new Set<string>();
+  const affectedUrls: string[] = [];
 
   for (const page of pages) {
     const title = page.meta.title;
     if (title && title.length > 0) {
       withTitle++;
-      if (title.length >= 30 && title.length <= 70) goodLength++;
+      if (title.length >= 30 && title.length <= 70) {
+        goodLength++;
+      } else {
+        if (affectedUrls.length < MAX_AFFECTED_URLS) affectedUrls.push(page.url);
+      }
       if (titles.has(title)) duplicates.add(title);
       titles.add(title);
+    } else {
+      if (affectedUrls.length < MAX_AFFECTED_URLS) affectedUrls.push(page.url);
+    }
+  }
+
+  // Also add pages with duplicate titles
+  if (duplicates.size > 0) {
+    for (const page of pages) {
+      if (duplicates.has(page.meta.title) && affectedUrls.length < MAX_AFFECTED_URLS && !affectedUrls.includes(page.url)) {
+        affectedUrls.push(page.url);
+      }
     }
   }
 
@@ -938,6 +1014,7 @@ function auditTitleTags(crawlResult: SiteCrawlResult): AuditItem {
     recommendation: score < 70
       ? 'Ensure every page has a unique title tag between 30-70 characters. Include primary keyword near the beginning.'
       : 'Title tags are well-optimized',
+    ...(affectedUrls.length > 0 ? { affectedUrls: affectedUrls.slice(0, MAX_AFFECTED_URLS) } : {}),
   };
 }
 
@@ -945,11 +1022,20 @@ function auditImageAltText(crawlResult: SiteCrawlResult): AuditItem {
   const { pages } = crawlResult;
   let totalImages = 0;
   let withAlt = 0;
+  const affectedUrls: string[] = [];
 
   for (const page of pages) {
+    let pageHasMissingAlt = false;
     for (const img of page.images) {
       totalImages++;
-      if (img.alt && img.alt.trim().length > 0) withAlt++;
+      if (img.alt && img.alt.trim().length > 0) {
+        withAlt++;
+      } else {
+        pageHasMissingAlt = true;
+      }
+    }
+    if (pageHasMissingAlt && affectedUrls.length < MAX_AFFECTED_URLS) {
+      affectedUrls.push(page.url);
     }
   }
 
@@ -978,6 +1064,7 @@ function auditImageAltText(crawlResult: SiteCrawlResult): AuditItem {
     recommendation: score < 80
       ? 'Add descriptive alt text to all images. Alt text helps search engines and AI models understand image content.'
       : 'Good image alt text coverage',
+    ...(affectedUrls.length > 0 ? { affectedUrls } : {}),
   };
 }
 
@@ -1017,6 +1104,8 @@ function auditInternalLinking(crawlResult: SiteCrawlResult): AuditItem {
     try { return new URL(url).pathname !== '/'; } catch { return true; }
   });
 
+  const affectedUrls = nonHomeOrphans.map(([url]) => url).slice(0, MAX_AFFECTED_URLS);
+
   const orphanRatio = pages.length > 1 ? nonHomeOrphans.length / (pages.length - 1) : 0;
 
   // Avg links quality (50pts) + orphan penalty (50pts)
@@ -1034,6 +1123,7 @@ function auditInternalLinking(crawlResult: SiteCrawlResult): AuditItem {
     recommendation: score < 70
       ? 'Improve internal linking: add contextual links between related pages and ensure no pages are orphaned (unreachable from other pages).'
       : 'Internal linking structure is healthy',
+    ...(affectedUrls.length > 0 ? { affectedUrls } : {}),
   };
 }
 
@@ -1052,8 +1142,13 @@ function auditMobileViewport(crawlResult: SiteCrawlResult): AuditItem {
   }
 
   let withViewport = 0;
+  const affectedUrls: string[] = [];
   for (const page of pages) {
-    if (page.meta.viewport) withViewport++;
+    if (page.meta.viewport) {
+      withViewport++;
+    } else {
+      if (affectedUrls.length < MAX_AFFECTED_URLS) affectedUrls.push(page.url);
+    }
   }
 
   const coverage = withViewport / pages.length;
@@ -1069,6 +1164,7 @@ function auditMobileViewport(crawlResult: SiteCrawlResult): AuditItem {
     recommendation: score < 90
       ? 'Add <meta name="viewport" content="width=device-width, initial-scale=1"> to all pages for mobile-friendly rendering.'
       : 'Mobile viewport is properly configured',
+    ...(affectedUrls.length > 0 ? { affectedUrls } : {}),
   };
 }
 
@@ -1112,6 +1208,7 @@ function auditHttps(crawlResult: SiteCrawlResult): AuditItem {
     recommendation: ratio < 1
       ? 'Migrate all pages to HTTPS. Search engines penalize non-HTTPS sites and browsers show security warnings.'
       : 'All pages are served securely over HTTPS',
+    ...(nonHttpsUrls.length > 0 ? { affectedUrls: nonHttpsUrls.slice(0, MAX_AFFECTED_URLS) } : {}),
   };
 }
 
@@ -1130,6 +1227,7 @@ function auditBrokenPages(crawlResult: SiteCrawlResult): AuditItem {
   }
 
   const brokenPages = pages.filter(p => p.statusCode < 200 || p.statusCode >= 400);
+  const affectedUrls = brokenPages.map(p => p.url).slice(0, MAX_AFFECTED_URLS);
   const ratio = brokenPages.length / pages.length;
   const score = Math.round((1 - ratio) * 100);
 
@@ -1145,6 +1243,7 @@ function auditBrokenPages(crawlResult: SiteCrawlResult): AuditItem {
     recommendation: brokenPages.length > 0
       ? 'Fix or remove broken pages (4xx/5xx status codes). Broken pages waste crawl budget and harm user experience.'
       : 'No broken pages detected',
+    ...(affectedUrls.length > 0 ? { affectedUrls } : {}),
   };
 }
 

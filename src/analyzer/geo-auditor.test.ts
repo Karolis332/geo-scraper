@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { auditSite } from './geo-auditor.js';
+import { auditSite, MAX_AFFECTED_URLS } from './geo-auditor.js';
 import { createMockCrawlResult, createMockPageData } from '../__tests__/fixtures.js';
 
 describe('auditSite', () => {
@@ -329,6 +329,107 @@ describe('auditSite', () => {
       }));
       const item = result.items.find(i => i.name === 'AI Bot Blocking')!;
       expect(item.score).toBeLessThan(100);
+    });
+  });
+
+  describe('affectedUrls', () => {
+    it('populates affectedUrls for per-page items with failures', () => {
+      const result = auditSite(createMockCrawlResult({
+        pages: [
+          createMockPageData({ url: 'https://example.com/', meta: { ...createMockPageData().meta, viewport: null } }),
+          createMockPageData({ url: 'https://example.com/about', meta: { ...createMockPageData().meta, viewport: null } }),
+        ],
+      }));
+      const item = result.items.find(i => i.name === 'Mobile Viewport')!;
+      expect(item.affectedUrls).toBeDefined();
+      expect(item.affectedUrls).toContain('https://example.com/');
+      expect(item.affectedUrls).toContain('https://example.com/about');
+    });
+
+    it('does not include affectedUrls when all pages pass', () => {
+      const result = auditSite(createMockCrawlResult({
+        pages: [createMockPageData({
+          url: 'https://example.com/',
+          meta: { ...createMockPageData().meta, viewport: 'width=device-width, initial-scale=1' },
+        })],
+      }));
+      const item = result.items.find(i => i.name === 'Mobile Viewport')!;
+      expect(item.affectedUrls).toBeUndefined();
+    });
+
+    it('caps affectedUrls at MAX_AFFECTED_URLS', () => {
+      const pages = Array.from({ length: 30 }, (_, i) =>
+        createMockPageData({
+          url: `https://example.com/page-${i}`,
+          meta: { ...createMockPageData().meta, viewport: null },
+        }),
+      );
+      const result = auditSite(createMockCrawlResult({ pages }));
+      const item = result.items.find(i => i.name === 'Mobile Viewport')!;
+      expect(item.affectedUrls).toBeDefined();
+      expect(item.affectedUrls!.length).toBe(MAX_AFFECTED_URLS);
+    });
+
+    it('does not have affectedUrls on site-level items', () => {
+      const result = auditSite(createMockCrawlResult());
+      const siteItems = ['robots.txt', 'sitemap.xml', 'llms.txt', 'llms-full.txt',
+        'AI Policy (ai.txt / ai.json)', 'security.txt', 'tdmrep.json', 'humans.txt', 'manifest.json'];
+      for (const name of siteItems) {
+        const item = result.items.find(i => i.name === name)!;
+        expect(item.affectedUrls).toBeUndefined();
+      }
+    });
+
+    it('populates affectedUrls for broken pages', () => {
+      const result = auditSite(createMockCrawlResult({
+        pages: [
+          createMockPageData({ statusCode: 200 }),
+          createMockPageData({ url: 'https://example.com/broken', statusCode: 404 }),
+        ],
+      }));
+      const item = result.items.find(i => i.name === 'Broken Pages')!;
+      expect(item.affectedUrls).toEqual(['https://example.com/broken']);
+    });
+
+    it('populates affectedUrls for non-HTTPS pages', () => {
+      const result = auditSite(createMockCrawlResult({
+        pages: [createMockPageData({ url: 'http://example.com/' })],
+      }));
+      const item = result.items.find(i => i.name === 'HTTPS Enforcement')!;
+      expect(item.affectedUrls).toEqual(['http://example.com/']);
+    });
+
+    it('populates affectedUrls for pages missing meta descriptions', () => {
+      const result = auditSite(createMockCrawlResult({
+        pages: [createMockPageData({
+          url: 'https://example.com/no-desc',
+          meta: { ...createMockPageData().meta, description: '' },
+        })],
+      }));
+      const item = result.items.find(i => i.name === 'Meta Descriptions')!;
+      expect(item.affectedUrls).toContain('https://example.com/no-desc');
+    });
+
+    it('populates affectedUrls for pages with missing image alt text', () => {
+      const result = auditSite(createMockCrawlResult({
+        pages: [createMockPageData({
+          url: 'https://example.com/images',
+          images: [{ src: '/img.jpg', alt: '' }],
+        })],
+      }));
+      const item = result.items.find(i => i.name === 'Image Alt Text')!;
+      expect(item.affectedUrls).toContain('https://example.com/images');
+    });
+
+    it('populates affectedUrls for thin content pages', () => {
+      const result = auditSite(createMockCrawlResult({
+        pages: [createMockPageData({
+          url: 'https://example.com/thin',
+          content: { headings: [], bodyText: 'short', wordCount: 10, faqItems: [], lists: [], tables: [] },
+        })],
+      }));
+      const item = result.items.find(i => i.name === 'Content Structure & Depth')!;
+      expect(item.affectedUrls).toContain('https://example.com/thin');
     });
   });
 });
