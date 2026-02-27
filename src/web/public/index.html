@@ -102,6 +102,42 @@
   .file-list { list-style: none; }
   .file-list li { padding: 8px 12px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; font-size: 14px; }
   .file-list li:last-child { border-bottom: none; }
+
+  /* Priority Fixes */
+  .pf-title { font-size: 16px; font-weight: 600; margin-bottom: 12px; }
+  .pf-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 16px; margin-bottom: 8px; display: flex; align-items: flex-start; gap: 14px; border-left: 3px solid var(--accent); }
+  .pf-impact { min-width: 50px; text-align: center; flex-shrink: 0; }
+  .pf-impact-val { font-size: 20px; font-weight: 700; color: var(--green); line-height: 1; }
+  .pf-impact-lbl { font-size: 10px; color: var(--text-dim); text-transform: uppercase; }
+  .pf-body { flex: 1; }
+  .pf-name { font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+  .pf-rec { font-size: 13px; color: var(--text-dim); margin-top: 4px; }
+  .pf-effort { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+  .pf-effort-easy { background: rgba(34,197,94,0.15); color: var(--green); }
+  .pf-effort-medium { background: rgba(234,179,8,0.15); color: var(--yellow); }
+  .pf-effort-hard { background: rgba(239,68,68,0.15); color: var(--red); }
+
+  /* Diff View */
+  .diff-controls { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 20px; }
+  .diff-controls select { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: var(--radius); outline: none; min-width: 200px; }
+  .diff-controls select:focus { border-color: var(--accent); }
+  .diff-header { display: flex; align-items: center; justify-content: center; gap: 24px; margin-bottom: 20px; }
+  .diff-score { text-align: center; }
+  .diff-score .value { font-size: 36px; font-weight: 700; }
+  .diff-arrow { font-size: 24px; color: var(--text-dim); }
+  .diff-delta { font-size: 28px; font-weight: 700; }
+  .diff-delta.positive { color: var(--green); }
+  .diff-delta.negative { color: var(--red); }
+  .diff-section { margin-bottom: 20px; }
+  .diff-section-title { font-size: 14px; font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+  .diff-item { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 14px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; font-size: 14px; }
+  .diff-item-delta { font-weight: 600; }
+
+  /* Schedule tab */
+  .schedule-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 16px; }
+  .schedule-toggle { background: none; border: 1px solid var(--border); border-radius: var(--radius); padding: 4px 12px; font-size: 12px; cursor: pointer; }
+  .schedule-toggle.on { color: var(--green); border-color: var(--green); }
+  .schedule-toggle.off { color: var(--red); border-color: var(--red); }
 </style>
 </head>
 <body>
@@ -111,6 +147,7 @@
   <div class="nav">
     <button class="active" onclick="showView('scan')">New Scan</button>
     <button onclick="showView('history')">History</button>
+    <button onclick="showView('schedules')">Schedules</button>
   </div>
 </div>
 
@@ -153,6 +190,7 @@
         <div class="score-big" id="result-score"></div>
         <div class="score-label" id="result-label"></div>
       </div>
+      <div id="priority-fixes" style="display:none;margin-top:20px"></div>
       <table class="detail-table" id="result-table"></table>
       <div class="result-actions">
         <button class="btn btn-primary btn-sm" id="btn-report" onclick="viewReport()">View Report</button>
@@ -169,7 +207,48 @@
 
   <!-- HISTORY VIEW -->
   <div id="view-history" class="view">
+    <div class="diff-controls" style="margin-bottom:16px">
+      <label style="font-size:13px;color:var(--text-dim);margin-right:8px">Filter by domain:</label>
+      <select id="domain-filter" onchange="loadHistory()">
+        <option value="">All domains</option>
+      </select>
+      <button class="btn btn-secondary btn-sm" id="btn-compare" onclick="openDiffView()" style="margin-left:12px;display:none">Compare Selected</button>
+      <span id="compare-hint" style="font-size:12px;color:var(--text-dim);margin-left:8px;display:none">Select 2 scans to compare</span>
+    </div>
     <div id="history-content"></div>
+  </div>
+
+  <!-- DIFF VIEW -->
+  <div id="view-diff" class="view">
+    <button class="btn btn-secondary btn-sm" onclick="showView('history')" style="margin-bottom:16px">&larr; Back to History</button>
+    <div id="diff-content"></div>
+  </div>
+
+  <!-- SCHEDULES VIEW -->
+  <div id="view-schedules" class="view">
+    <div class="form-card" style="margin-bottom:20px">
+      <div style="font-size:16px;font-weight:600;margin-bottom:12px">Add Schedule</div>
+      <div class="form-group">
+        <label>Website URL</label>
+        <input type="text" id="sched-url" placeholder="https://example.com">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Frequency</label>
+          <select id="sched-freq" style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:10px 14px;border-radius:var(--radius)">
+            <option value="daily">Daily</option>
+            <option value="weekly" selected>Weekly</option>
+            <option value="monthly">Monthly</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Max Pages</label>
+          <input type="number" id="sched-max-pages" value="50" min="1" max="500">
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="createSchedule()">Add Schedule</button>
+    </div>
+    <div id="schedules-content"></div>
   </div>
 </div>
 
@@ -188,12 +267,17 @@
   let eventSource = null;
 
   // ── Navigation ─────────────────────────────────────────────────
+  let selectedDiffJobs = [];
+
   function showView(name) {
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.querySelectorAll('.nav button').forEach(b => b.classList.remove('active'));
     document.getElementById('view-' + name).classList.add('active');
-    document.querySelectorAll('.nav button')[name === 'scan' ? 0 : 1].classList.add('active');
-    if (name === 'history') loadHistory();
+    const navIdx = { scan: 0, history: 1, schedules: 2, diff: 1 };
+    const btn = document.querySelectorAll('.nav button')[navIdx[name] ?? 0];
+    if (btn) btn.classList.add('active');
+    if (name === 'history') { selectedDiffJobs = []; loadHistory(); }
+    if (name === 'schedules') loadSchedules();
   }
 
   // ── Start Job ──────────────────────────────────────────────────
@@ -309,6 +393,25 @@
     const table = document.getElementById('result-table');
     const result = job.result;
 
+    // Render priority fixes
+    const pfEl = document.getElementById('priority-fixes');
+    if (result && result.priorityActions && result.priorityActions.length > 0) {
+      pfEl.style.display = 'block';
+      pfEl.innerHTML = `<div class="pf-title">Top Fixes</div>` +
+        result.priorityActions.map(a =>
+          `<div class="pf-card">
+            <div class="pf-impact"><div class="pf-impact-val">+${a.scoreImpact}</div><div class="pf-impact-lbl">pts</div></div>
+            <div class="pf-body">
+              <div class="pf-name">${esc(a.name)} <span class="pf-effort pf-effort-${a.effort}">${a.effort}</span></div>
+              <div class="pf-rec">${esc(a.recommendation)}</div>
+            </div>
+          </div>`
+        ).join('');
+    } else {
+      pfEl.style.display = 'none';
+      pfEl.innerHTML = '';
+    }
+
     if (result && result.type === 'scan' && result.auditItems) {
       table.innerHTML = `<thead><tr><th>Item</th><th>Category</th><th>Score</th><th>Status</th></tr></thead><tbody>` +
         result.auditItems.map(item =>
@@ -370,16 +473,26 @@
   async function loadHistory() {
     const res = await fetch('/api/jobs');
     const jobs = await res.json();
+    const domainFilter = document.getElementById('domain-filter').value;
+
+    // Populate domain filter dropdown
+    const domains = [...new Set(jobs.map(j => j.domain))].sort();
+    const domainSelect = document.getElementById('domain-filter');
+    const currentVal = domainSelect.value;
+    domainSelect.innerHTML = '<option value="">All domains</option>' +
+      domains.map(d => `<option value="${esc(d)}" ${d === currentVal ? 'selected' : ''}>${esc(d)}</option>`).join('');
+
+    const filtered = domainFilter ? jobs.filter(j => j.domain === domainFilter) : jobs;
 
     const el = document.getElementById('history-content');
-    if (jobs.length === 0) {
+    if (filtered.length === 0) {
       el.innerHTML = '<div class="empty-state">No jobs yet. Run a scan to get started.</div>';
       return;
     }
 
     el.innerHTML = `<table class="history-table">
-      <thead><tr><th>Date</th><th>URL</th><th>Type</th><th>Score</th><th>Status</th><th></th></tr></thead>
-      <tbody>` + jobs.map(j => {
+      <thead><tr><th style="width:30px"></th><th>Date</th><th>URL</th><th>Type</th><th>Score</th><th>Status</th><th></th></tr></thead>
+      <tbody>` + filtered.map(j => {
         const date = new Date(j.created_at).toLocaleString();
         const score = j.score != null ? j.score + '/100' : '—';
         const grade = j.grade || '';
@@ -387,7 +500,10 @@
           : j.status === 'failed' ? '<span class="badge badge-failed">Failed</span>'
           : '';
         const colorClass = (j.score || 0) >= 70 ? 'score-green' : (j.score || 0) >= 40 ? 'score-yellow' : 'score-red';
+        const canCompare = j.type === 'scan' && j.status === 'completed';
+        const isChecked = selectedDiffJobs.includes(j.id);
         return `<tr onclick="viewHistoryJob('${j.id}')">
+          <td onclick="event.stopPropagation()">${canCompare ? `<input type="checkbox" class="diff-checkbox" data-job-id="${j.id}" ${isChecked ? 'checked' : ''} onclick="toggleDiffSelect('${j.id}')">` : ''}</td>
           <td style="color:var(--text-dim);font-size:13px">${esc(date)}</td>
           <td>${esc(j.url)}</td>
           <td><span class="badge badge-${j.type}">${j.type}</span></td>
@@ -396,6 +512,17 @@
           <td><button class="btn btn-danger" onclick="event.stopPropagation();deleteJob('${j.id}')">Delete</button></td>
         </tr>`;
       }).join('') + `</tbody></table>`;
+
+    // Update compare button visibility
+    const compareBtn = document.getElementById('btn-compare');
+    const hint = document.getElementById('compare-hint');
+    if (selectedDiffJobs.length === 2) {
+      compareBtn.style.display = '';
+      hint.style.display = 'none';
+    } else {
+      compareBtn.style.display = 'none';
+      hint.style.display = selectedDiffJobs.length > 0 ? '' : 'none';
+    }
   }
 
   async function viewHistoryJob(jobId) {
@@ -438,6 +565,154 @@
   // ── Helpers ────────────────────────────────────────────────────
   function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
   function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+  // ── Diff View ─────────────────────────────────────────────────
+  function toggleDiffSelect(jobId) {
+    const idx = selectedDiffJobs.indexOf(jobId);
+    if (idx >= 0) {
+      selectedDiffJobs.splice(idx, 1);
+    } else if (selectedDiffJobs.length < 2) {
+      selectedDiffJobs.push(jobId);
+    }
+    // Update UI
+    document.querySelectorAll('.diff-checkbox').forEach(cb => {
+      cb.checked = selectedDiffJobs.includes(cb.dataset.jobId);
+    });
+    const compareBtn = document.getElementById('btn-compare');
+    const hint = document.getElementById('compare-hint');
+    if (selectedDiffJobs.length === 2) {
+      compareBtn.style.display = '';
+      hint.style.display = 'none';
+    } else {
+      compareBtn.style.display = 'none';
+      hint.style.display = selectedDiffJobs.length > 0 ? '' : 'none';
+    }
+  }
+
+  async function openDiffView() {
+    if (selectedDiffJobs.length !== 2) return;
+    const [id1, id2] = selectedDiffJobs;
+    try {
+      const res = await fetch(`/api/diff/${id1}/${id2}`);
+      if (!res.ok) { alert('Failed to generate diff'); return; }
+      const diff = await res.json();
+      renderDiff(diff);
+      showView('diff');
+    } catch (e) {
+      alert('Error: ' + e.message);
+    }
+  }
+
+  function renderDiff(diff) {
+    const el = document.getElementById('diff-content');
+    const deltaClass = diff.scoreDelta > 0 ? 'positive' : diff.scoreDelta < 0 ? 'negative' : '';
+    const deltaSign = diff.scoreDelta > 0 ? '+' : '';
+
+    let html = `
+      <div class="diff-header">
+        <div class="diff-score"><div class="value">${diff.beforeScore}</div><div style="color:var(--text-dim);font-size:13px">${diff.beforeGrade}</div></div>
+        <div class="diff-arrow">&rarr;</div>
+        <div class="diff-score"><div class="value">${diff.afterScore}</div><div style="color:var(--text-dim);font-size:13px">${diff.afterGrade}</div></div>
+        <div class="diff-delta ${deltaClass}">${deltaSign}${diff.scoreDelta}</div>
+      </div>`;
+
+    // Category summary
+    html += `<div class="diff-section"><div class="diff-section-title">Category Summary</div>`;
+    for (const cat of diff.categorySummary) {
+      if (cat.total === 0) continue;
+      const delta = cat.afterPassed - cat.beforePassed;
+      const deltaStr = delta > 0 ? `<span style="color:var(--green)">+${delta}</span>` : delta < 0 ? `<span style="color:var(--red)">${delta}</span>` : '<span style="color:var(--text-dim)">0</span>';
+      html += `<div class="diff-item"><span>${esc(cat.category)}</span><span>${cat.beforePassed}/${cat.total} &rarr; ${cat.afterPassed}/${cat.total} (${deltaStr})</span></div>`;
+    }
+    html += `</div>`;
+
+    // Sections
+    const sections = [
+      { title: 'Resolved', items: diff.resolved, color: 'var(--green)', icon: '&#10003;' },
+      { title: 'Improved', items: diff.improved, color: 'var(--green)', icon: '&uarr;' },
+      { title: 'Regressed', items: diff.regressed, color: 'var(--red)', icon: '&darr;' },
+      { title: 'New Issues', items: diff.newIssues, color: 'var(--red)', icon: '&#10005;' },
+    ];
+
+    for (const sec of sections) {
+      if (sec.items.length === 0) continue;
+      html += `<div class="diff-section"><div class="diff-section-title"><span style="color:${sec.color}">${sec.icon}</span> ${sec.title} (${sec.items.length})</div>`;
+      for (const item of sec.items) {
+        const sign = item.delta > 0 ? '+' : '';
+        const col = item.delta > 0 ? 'var(--green)' : item.delta < 0 ? 'var(--red)' : 'var(--text-dim)';
+        html += `<div class="diff-item"><span>${esc(item.name)} <span style="color:var(--text-dim);font-size:12px">${esc(item.category)}</span></span><span class="diff-item-delta" style="color:${col}">${item.beforeScore} &rarr; ${item.afterScore} (${sign}${item.delta})</span></div>`;
+      }
+      html += `</div>`;
+    }
+
+    el.innerHTML = html;
+  }
+
+  // ── Schedules ────────────────────────────────────────────────
+  async function loadSchedules() {
+    const res = await fetch('/api/schedules');
+    const schedules = await res.json();
+    const el = document.getElementById('schedules-content');
+
+    if (schedules.length === 0) {
+      el.innerHTML = '<div class="empty-state">No schedules configured.</div>';
+      return;
+    }
+
+    el.innerHTML = schedules.map(s => {
+      const lastRun = s.last_run_at ? new Date(s.last_run_at).toLocaleString() : 'Never';
+      const nextRun = new Date(s.next_run_at).toLocaleString();
+      const toggleClass = s.enabled ? 'on' : 'off';
+      const toggleText = s.enabled ? 'Enabled' : 'Disabled';
+      return `<div class="schedule-card">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div style="font-weight:600">${esc(s.domain)}</div>
+            <div style="font-size:13px;color:var(--text-dim)">${esc(s.url)} &middot; ${esc(s.frequency)} &middot; Max ${s.max_pages} pages</div>
+            <div style="font-size:12px;color:var(--text-dim);margin-top:4px">Last: ${esc(lastRun)} &middot; Next: ${esc(nextRun)}</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="schedule-toggle ${toggleClass}" onclick="toggleSchedule('${s.id}', ${s.enabled ? 0 : 1})">${toggleText}</button>
+            <button class="btn btn-danger" onclick="deleteSchedule('${s.id}')">Delete</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  async function createSchedule() {
+    const url = document.getElementById('sched-url').value.trim();
+    if (!url) { document.getElementById('sched-url').focus(); return; }
+    const frequency = document.getElementById('sched-freq').value;
+    const maxPages = parseInt(document.getElementById('sched-max-pages').value) || 50;
+
+    const res = await fetch('/api/schedules', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, frequency, maxPages }),
+    });
+    if (res.ok) {
+      document.getElementById('sched-url').value = '';
+      loadSchedules();
+    } else {
+      const data = await res.json();
+      alert('Error: ' + (data.error || 'Unknown'));
+    }
+  }
+
+  async function toggleSchedule(id, enabled) {
+    await fetch('/api/schedules/' + id, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled }),
+    });
+    loadSchedules();
+  }
+
+  async function deleteSchedule(id) {
+    await fetch('/api/schedules/' + id, { method: 'DELETE' });
+    loadSchedules();
+  }
 
   // Handle Enter key on URL input
   document.getElementById('url-input').addEventListener('keydown', (e) => {

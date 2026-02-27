@@ -11,6 +11,8 @@ import { dirname } from 'node:path';
 
 import { JobDatabase } from './database.js';
 import { runScanJob, runCheckJob, jobEvents, type ProgressEvent } from './job-runner.js';
+import { generateScanDiff } from './diff-engine.js';
+import { startScheduler, stopScheduler, calculateNextRun } from './scheduler.js';
 import { extractDomain, isValidHttpUrl, ensureHttps } from '../utils/url-utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -247,6 +249,130 @@ export function createServer(port: number, dbPath: string) {
     }
   });
 
+  // ── Schedule Endpoints ──────────────────────────────────────────────
+
+  // GET /api/schedules
+  app.get('/api/schedules', (_req: Request, res: Response) => {
+    res.json(db.listSchedules());
+  });
+
+  // POST /api/schedules
+  app.post('/api/schedules', (req: Request, res: Response) => {
+    const { url: rawUrl, frequency, maxPages = 50, concurrency = 3 } = req.body as {
+      url?: string; frequency?: string; maxPages?: number; concurrency?: number;
+    };
+
+    if (!rawUrl || !frequency) {
+      res.status(400).json({ error: 'url and frequency are required' });
+      return;
+    }
+
+    if (!['daily', 'weekly', 'monthly'].includes(frequency)) {
+      res.status(400).json({ error: 'frequency must be daily, weekly, or monthly' });
+      return;
+    }
+
+    let url = rawUrl;
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      url = `https://${url}`;
+    }
+    url = ensureHttps(url);
+
+    if (!isValidHttpUrl(url)) {
+      res.status(400).json({ error: 'Invalid URL' });
+      return;
+    }
+
+    const domain = extractDomain(url);
+    const id = randomUUID();
+    const nextRunAt = calculateNextRun(frequency as 'daily' | 'weekly' | 'monthly');
+
+    const schedule = db.createSchedule({
+      id,
+      domain,
+      url,
+      type: 'scan',
+      frequency: frequency as 'daily' | 'weekly' | 'monthly',
+      max_pages: maxPages,
+      concurrency,
+      next_run_at: nextRunAt,
+    });
+
+    res.json(schedule);
+  });
+
+  // PUT /api/schedules/:id
+  app.put('/api/schedules/:id', (req: Request<IdParams>, res: Response) => {
+    const schedule = db.getSchedule(req.params.id);
+    if (!schedule) {
+      res.status(404).json({ error: 'Schedule not found' });
+      return;
+    }
+
+    const { frequency, enabled, maxPages, concurrency } = req.body as {
+      frequency?: string; enabled?: number; maxPages?: number; concurrency?: number;
+    };
+
+    db.updateSchedule(req.params.id, {
+      ...(frequency !== undefined ? { frequency: frequency as 'daily' | 'weekly' | 'monthly' } : {}),
+      ...(enabled !== undefined ? { enabled } : {}),
+      ...(maxPages !== undefined ? { max_pages: maxPages } : {}),
+      ...(concurrency !== undefined ? { concurrency } : {}),
+    });
+
+    res.json({ updated: true });
+  });
+
+  // DELETE /api/schedules/:id
+  app.delete('/api/schedules/:id', (req: Request<IdParams>, res: Response) => {
+    const deleted = db.deleteSchedule(req.params.id);
+    if (!deleted) {
+      res.status(404).json({ error: 'Schedule not found' });
+      return;
+    }
+    res.json({ deleted: true });
+  });
+
+  // ── GET /api/jobs/domain/:domain — jobs for a specific domain ────────
+  app.get('/api/jobs/domain/:domain', (req: Request<{ domain: string }>, res: Response) => {
+    const jobs = db.getJobsByDomain(req.params.domain);
+    res.json(jobs);
+  });
+
+  // ── GET /api/diff/:jobId1/:jobId2 — compare two scans ─────────────
+  app.get('/api/diff/:jobId1/:jobId2', (req: Request<{ jobId1: string; jobId2: string }>, res: Response) => {
+    const job1 = db.getJob(req.params.jobId1);
+    const job2 = db.getJob(req.params.jobId2);
+
+    if (!job1 || !job2) {
+      res.status(404).json({ error: 'One or both jobs not found' });
+      return;
+    }
+    if (job1.status !== 'completed' || job2.status !== 'completed') {
+      res.status(400).json({ error: 'Both jobs must be completed' });
+      return;
+    }
+    if (!job1.result_json || !job2.result_json) {
+      res.status(400).json({ error: 'Both jobs must have results' });
+      return;
+    }
+
+    try {
+      const before = JSON.parse(job1.result_json);
+      const after = JSON.parse(job2.result_json);
+
+      if (before.type !== 'scan' || after.type !== 'scan') {
+        res.status(400).json({ error: 'Both jobs must be scan type' });
+        return;
+      }
+
+      const diff = generateScanDiff(before, after);
+      res.json(diff);
+    } catch {
+      res.status(500).json({ error: 'Failed to generate diff' });
+    }
+  });
+
   // ── DELETE /api/jobs/:id ──────────────────────────────────────────────
   app.delete('/api/jobs/:id', async (req: Request<IdParams>, res: Response) => {
     const job = db.getJob(req.params.id);
@@ -272,8 +398,16 @@ export function createServer(port: number, dbPath: string) {
     res.sendFile(join(publicDir, 'index.html'));
   });
 
+  // Start the scheduler
+  startScheduler(db);
+
   const server = app.listen(port, () => {
     // Server started — caller logs the message
+  });
+
+  // Graceful shutdown
+  server.on('close', () => {
+    stopScheduler();
   });
 
   return { app, server, db };

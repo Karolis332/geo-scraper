@@ -2,7 +2,8 @@
  * Generate HTML audit report and summary.json.
  */
 
-import type { AuditResult, AuditItem } from '../analyzer/geo-auditor.js';
+import type { AuditResult, AuditItem, PriorityAction } from '../analyzer/geo-auditor.js';
+import { calculatePriorityActions } from '../analyzer/geo-auditor.js';
 import type { SiteCrawlResult } from '../crawler/page-data.js';
 
 interface ReportStrings {
@@ -929,6 +930,56 @@ export function generateAuditReportHtml(
     }
     .affected-urls-list li:last-child { border-bottom: none; }
     .affected-urls-list a { color: var(--accent); font-size: 0.8rem; word-break: break-all; }
+    .priority-fixes { margin-top: 2rem; }
+    .priority-fix-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+      border-left: 3px solid var(--accent);
+      box-shadow: var(--shadow-sm);
+      transition: box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+    .priority-fix-card:hover { box-shadow: var(--shadow-md); border-color: var(--border-strong); }
+    .priority-impact {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-width: 60px;
+      flex-shrink: 0;
+    }
+    .priority-impact-value {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--green);
+      line-height: 1;
+    }
+    .priority-impact-label {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      margin-top: 2px;
+    }
+    .priority-fix-body { flex: 1; }
+    .priority-fix-title { font-weight: 600; margin-bottom: 0.25rem; display: flex; align-items: center; gap: 0.5rem; }
+    .priority-fix-rec { font-size: 0.85rem; color: var(--text-dim); line-height: 1.5; }
+    .effort-pill {
+      display: inline-block;
+      padding: 1px 8px;
+      border-radius: 10px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .effort-easy { background: rgba(52,211,153,0.15); color: var(--green); }
+    .effort-medium { background: rgba(251,191,36,0.15); color: var(--yellow); }
+    .effort-hard { background: rgba(248,113,113,0.15); color: var(--red); }
     .footer {
       margin-top: 3rem;
       padding-top: 1.5rem;
@@ -1036,6 +1087,8 @@ ${renderCategory(s.low, 'low', audit.items, lang)}
 ${renderCategory(s.seo, 'seo', audit.items, lang)}
 ${renderCategory(s.eeat, 'eeat', audit.items, lang)}
 ${renderCategory(s.aeo, 'aeo', audit.items, lang)}
+
+${renderPriorityFixes(audit, lang)}
 
 ${clientActionItems.length > 0 ? `
   <div class="action-items">
@@ -1157,6 +1210,35 @@ function renderCategory(title: string, category: string, items: AuditItem[], lan
   }
 
   return html;
+}
+
+function renderPriorityFixes(audit: AuditResult, lang: string): string {
+  const actions = calculatePriorityActions(audit);
+  if (actions.length === 0) return '';
+
+  const title = lang === 'lt' ? 'Prioritetiniai pataisymai' : 'Priority Fixes';
+  const subtitle = lang === 'lt'
+    ? 'Didžiausio poveikio veiksmai jūsų balui pagerinti, surikiuoti pagal taškų poveikį.'
+    : 'Highest-impact actions to improve your score, ranked by point impact.';
+
+  return `
+  <div class="priority-fixes">
+    <h2>${title}</h2>
+    <p style="color:var(--text-dim);font-size:0.9rem;margin-bottom:1rem">${subtitle}</p>
+${actions.map(action => `    <div class="priority-fix-card">
+      <div class="priority-impact">
+        <div class="priority-impact-value">+${action.scoreImpact}</div>
+        <div class="priority-impact-label">${lang === 'lt' ? 'taškai' : 'points'}</div>
+      </div>
+      <div class="priority-fix-body">
+        <div class="priority-fix-title">
+          ${translateItemName(action.name, lang)}
+          <span class="effort-pill effort-${action.effort}">${action.effort}</span>
+        </div>
+        <div class="priority-fix-rec">${getClientGuide(action.name, lang) || translateItemRec(action.recommendation, lang)}</div>
+      </div>
+    </div>`).join('\n')}
+  </div>`;
 }
 
 /** Items that are auto-generated and don't need client action */

@@ -1641,6 +1641,159 @@ function auditSchemaMarkupDiversity(crawlResult: SiteCrawlResult): AuditItem {
   };
 }
 
+// ===== PRIORITY ACTION ITEMS =====
+
+export interface PriorityAction {
+  name: string;
+  category: string;
+  currentScore: number;
+  potentialScore: number;
+  scoreImpact: number;
+  effort: 'easy' | 'medium' | 'hard';
+  seoImpact: 'foundational' | 'high' | 'medium' | 'low';
+  timeToImpact: 'immediate' | '2-4 weeks' | '2-6 months';
+  recommendation: string;
+  affectedUrls?: string[];
+}
+
+const AUTO_GENERATED_ITEMS_SET = new Set([
+  'robots.txt',
+  'AI Bot Blocking',
+  'sitemap.xml',
+  'llms.txt',
+  'llms-full.txt',
+  'AI Policy (ai.txt / ai.json)',
+  'security.txt',
+  'tdmrep.json',
+  'humans.txt',
+  'manifest.json',
+  'Structured Data (JSON-LD)',
+]);
+
+const EFFORT_MAP: Record<string, 'easy' | 'medium' | 'hard'> = {
+  'Open Graph Tags': 'easy',
+  'AI Content Directives': 'easy',
+  'Mobile Viewport': 'easy',
+  'Meta Descriptions': 'medium',
+  'Image Alt Text': 'medium',
+  'Title Tags': 'medium',
+  'Content Freshness': 'medium',
+  'Internal Linking': 'medium',
+  'Server-side Rendering': 'hard',
+  'Heading Hierarchy': 'hard',
+  'Content Structure & Depth': 'hard',
+  'Search Engine Indexing': 'hard',
+  'FAQ Content': 'hard',
+  'HTTPS Enforcement': 'hard',
+  'Broken Pages': 'medium',
+  'Author & Expertise Signals': 'hard',
+  'Trust Signals': 'hard',
+  'Social Proof & Authority': 'hard',
+  'Citation Quality': 'hard',
+  'Featured Snippet Readiness': 'hard',
+  'Voice Search Optimization': 'hard',
+  'Answer Format Diversity': 'hard',
+  'Schema Markup Diversity': 'hard',
+};
+
+const SEO_IMPACT_MAP: Record<string, 'foundational' | 'high' | 'medium' | 'low'> = {
+  'Search Engine Indexing': 'foundational',
+  'HTTPS Enforcement': 'foundational',
+  'Broken Pages': 'foundational',
+  'Server-side Rendering': 'foundational',
+  'Title Tags': 'high',
+  'Meta Descriptions': 'high',
+  'Content Structure & Depth': 'high',
+  'Heading Hierarchy': 'high',
+  'Internal Linking': 'high',
+  'Image Alt Text': 'medium',
+  'FAQ Content': 'medium',
+  'Mobile Viewport': 'medium',
+  'Open Graph Tags': 'medium',
+  'AI Content Directives': 'medium',
+  'Content Freshness': 'medium',
+  'Author & Expertise Signals': 'low',
+  'Trust Signals': 'low',
+  'Social Proof & Authority': 'low',
+  'Citation Quality': 'low',
+  'Featured Snippet Readiness': 'low',
+  'Voice Search Optimization': 'low',
+  'Answer Format Diversity': 'low',
+  'Schema Markup Diversity': 'low',
+};
+
+const TIME_TO_IMPACT_MAP: Record<string, 'immediate' | '2-4 weeks' | '2-6 months'> = {
+  'Open Graph Tags': 'immediate',
+  'AI Content Directives': 'immediate',
+  'Mobile Viewport': 'immediate',
+  'Meta Descriptions': '2-4 weeks',
+  'Image Alt Text': '2-4 weeks',
+  'Title Tags': '2-4 weeks',
+  'Broken Pages': '2-4 weeks',
+  'Internal Linking': '2-4 weeks',
+  'Content Freshness': '2-4 weeks',
+  'Heading Hierarchy': '2-4 weeks',
+  'Server-side Rendering': '2-6 months',
+  'Content Structure & Depth': '2-6 months',
+  'Search Engine Indexing': '2-6 months',
+  'FAQ Content': '2-6 months',
+  'HTTPS Enforcement': '2-6 months',
+  'Author & Expertise Signals': '2-6 months',
+  'Trust Signals': '2-6 months',
+  'Social Proof & Authority': '2-6 months',
+  'Citation Quality': '2-6 months',
+  'Featured Snippet Readiness': '2-6 months',
+  'Voice Search Optimization': '2-6 months',
+  'Answer Format Diversity': '2-6 months',
+  'Schema Markup Diversity': '2-6 months',
+};
+
+export function calculatePriorityActions(audit: AuditResult): PriorityAction[] {
+  const weights: Record<string, number> = { critical: 3, high: 2, medium: 1, low: 0.5, seo: 1.5, eeat: 1.5, aeo: 1.5 };
+
+  // Calculate total weighted max for score impact calculation
+  let totalWeightedMax = 0;
+  for (const item of audit.items) {
+    totalWeightedMax += item.maxScore * weights[item.category];
+  }
+
+  const actions: PriorityAction[] = [];
+
+  for (const item of audit.items) {
+    // Skip auto-generated items, passing items, and items at max score
+    if (AUTO_GENERATED_ITEMS_SET.has(item.name)) continue;
+    if (item.status === 'pass' || item.score >= 100) continue;
+
+    const weight = weights[item.category];
+    const scoreImpact = totalWeightedMax > 0
+      ? Math.round(((item.maxScore - item.score) * weight / totalWeightedMax) * 100 * 10) / 10
+      : 0;
+
+    // Dynamic effort: Meta Descriptions becomes 'hard' if score < 50 (meaning >50% pages affected)
+    let effort = EFFORT_MAP[item.name] || 'medium';
+    if (item.name === 'Meta Descriptions' && item.score < 50) {
+      effort = 'hard';
+    }
+
+    actions.push({
+      name: item.name,
+      category: item.category,
+      currentScore: item.score,
+      potentialScore: item.maxScore,
+      scoreImpact,
+      effort,
+      seoImpact: SEO_IMPACT_MAP[item.name] || 'low',
+      timeToImpact: TIME_TO_IMPACT_MAP[item.name] || '2-6 months',
+      recommendation: item.recommendation,
+      ...(item.affectedUrls && item.affectedUrls.length > 0 ? { affectedUrls: item.affectedUrls } : {}),
+    });
+  }
+
+  // Sort by score impact descending, return top 5
+  actions.sort((a, b) => b.scoreImpact - a.scoreImpact);
+  return actions.slice(0, 5);
+}
+
 function auditFAQContent(crawlResult: SiteCrawlResult): AuditItem {
   const { pages } = crawlResult;
   let totalFAQs = 0;

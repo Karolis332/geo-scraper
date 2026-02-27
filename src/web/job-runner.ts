@@ -8,7 +8,7 @@ import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { crawlSite } from '../crawler/site-crawler.js';
-import { auditSite } from '../analyzer/geo-auditor.js';
+import { auditSite, calculatePriorityActions } from '../analyzer/geo-auditor.js';
 import { generateLlmsTxt } from '../generators/llms-txt.js';
 import { generateLlmsFullTxt } from '../generators/llms-full-txt.js';
 import { generateRobotsTxt } from '../generators/robots-txt.js';
@@ -125,6 +125,9 @@ export async function runScanJob(
     }
     emit(jobId, 'generate', `Generated ${files.length} files`, 95);
 
+    // Calculate priority actions
+    const priorityActions = calculatePriorityActions(audit);
+
     // Build result JSON for storage
     const resultJson = JSON.stringify({
       type: 'scan',
@@ -135,6 +138,7 @@ export async function runScanJob(
       auditItems: audit.items,
       summary: audit.summary,
       domain: crawlResult.domain,
+      priorityActions,
     });
 
     db.updateJobCompleted(jobId, audit.overallScore, audit.grade, resultJson);
