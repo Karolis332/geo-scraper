@@ -369,8 +369,12 @@ function auditStructuredData(crawlResult: SiteCrawlResult): AuditItem {
       pagesWithJsonLd++;
       totalJsonLdItems += page.existingStructuredData.jsonLd.length;
       for (const item of page.existingStructuredData.jsonLd) {
-        const type = (item['@type'] as string) || 'unknown';
-        schemaTypes.add(type);
+        const rawType = item['@type'];
+        if (Array.isArray(rawType)) {
+          for (const t of rawType) schemaTypes.add(String(t));
+        } else if (rawType) {
+          schemaTypes.add(String(rawType));
+        }
       }
     } else {
       if (affectedUrls.length < MAX_AFFECTED_URLS) affectedUrls.push(page.url);
@@ -1617,8 +1621,12 @@ function auditSchemaMarkupDiversity(crawlResult: SiteCrawlResult): AuditItem {
 
   for (const page of pages) {
     for (const item of page.existingStructuredData.jsonLd) {
-      const type = item['@type'] as string;
-      if (type) schemaTypes.add(type);
+      const rawType = item['@type'];
+      if (Array.isArray(rawType)) {
+        for (const t of rawType) schemaTypes.add(String(t));
+      } else if (rawType) {
+        schemaTypes.add(String(rawType));
+      }
     }
   }
 
