@@ -64,8 +64,8 @@ export function createServer(port: number, dbPath: string) {
 
   // ── POST /api/check ───────────────────────────────────────────────────
   app.post('/api/check', (req: Request, res: Response) => {
-    const { url: rawUrl, maxPages = 20, concurrency = 3, queryCount = 10 } = req.body as {
-      url?: string; maxPages?: number; concurrency?: number; queryCount?: number;
+    const { url: rawUrl, maxPages = 20, concurrency = 3, queryCount = 10, region = null } = req.body as {
+      url?: string; maxPages?: number; concurrency?: number; queryCount?: number; region?: string | null;
     };
 
     if (!rawUrl) {
@@ -91,7 +91,7 @@ export function createServer(port: number, dbPath: string) {
     db.createJob({ id: jobId, url, domain, type: 'check', output_dir: outputDir });
 
     // Fire and forget
-    runCheckJob(db, jobId, url, { maxPages, concurrency, queryCount, outputDir });
+    runCheckJob(db, jobId, url, { maxPages, concurrency, queryCount, outputDir, region });
 
     res.json({ jobId, url, domain });
   });

@@ -3,7 +3,7 @@
  */
 
 import type { CheerioAPI } from 'cheerio';
-import type { PageContent, HeadingNode, FAQItem } from '../crawler/page-data.js';
+import type { PageContent, HeadingNode, FAQItem, CitationData } from '../crawler/page-data.js';
 
 export function extractContent($: CheerioAPI): PageContent {
   const headings = extractHeadings($);
@@ -12,8 +12,9 @@ export function extractContent($: CheerioAPI): PageContent {
   const wordCount = bodyText.split(/\s+/).filter(Boolean).length;
   const lists = extractLists($);
   const tables = extractTables($);
+  const citations = extractCitations($, bodyText);
 
-  return { headings, bodyText, wordCount, faqItems, lists, tables };
+  return { headings, bodyText, wordCount, faqItems, lists, tables, citations };
 }
 
 function extractHeadings($: CheerioAPI): HeadingNode[] {
@@ -118,4 +119,77 @@ function extractTables($: CheerioAPI): string[][][] {
     if (rows.length > 0) tables.push(rows);
   });
   return tables;
+}
+
+function extractCitations($: CheerioAPI, bodyText: string): CitationData {
+  const statistics: string[] = [];
+  const sources: string[] = [];
+  const quotes: string[] = [];
+  const seen = new Set<string>();
+
+  // Statistics: percentages, multipliers, dollar amounts, "X out of Y"
+  const statPatterns = [
+    /\d+(?:\.\d+)?%/g,
+    /\d+x\b/gi,
+    /\$\d+(?:\.\d+)?\s*(?:million|billion|trillion|M|B|K)/gi,
+    /\d+\s+out\s+of\s+\d+/gi,
+  ];
+  for (const pattern of statPatterns) {
+    const matches = bodyText.match(pattern);
+    if (matches) {
+      for (const m of matches) {
+        const trimmed = m.trim();
+        if (!seen.has(trimmed)) {
+          seen.add(trimmed);
+          statistics.push(trimmed);
+        }
+      }
+    }
+  }
+
+  // Sources: <cite> elements
+  $('cite').each((_i, el) => {
+    const text = $(el).text().trim();
+    if (text && text.length > 2 && !seen.has(text)) {
+      seen.add(text);
+      sources.push(text);
+    }
+  });
+
+  // Sources: <blockquote cite=""> attribute
+  $('blockquote[cite]').each((_i, el) => {
+    const cite = $(el).attr('cite');
+    if (cite && !seen.has(cite)) {
+      seen.add(cite);
+      sources.push(cite);
+    }
+  });
+
+  // Sources: "according to", "study shows", "research by" patterns
+  const sourcePatterns = [
+    /according\s+to\s+([^,.;]+)/gi,
+    /(?:study|research|report|survey)\s+(?:by|from)\s+([^,.;]+)/gi,
+    /(?:study|research)\s+(?:shows?|finds?|found|reveals?)/gi,
+  ];
+  for (const pattern of sourcePatterns) {
+    let match;
+    while ((match = pattern.exec(bodyText)) !== null) {
+      const text = (match[1] || match[0]).trim();
+      if (text.length > 3 && text.length < 100 && !seen.has(text)) {
+        seen.add(text);
+        sources.push(text);
+      }
+    }
+  }
+
+  // Quotes: <blockquote> elements with meaningful text
+  $('blockquote').each((_i, el) => {
+    const text = $(el).text().trim();
+    if (text && text.length > 20 && text.length < 500 && !seen.has(text)) {
+      seen.add(text);
+      quotes.push(text);
+    }
+  });
+
+  return { statistics, sources, quotes };
 }

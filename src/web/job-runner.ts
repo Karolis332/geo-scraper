@@ -155,7 +155,7 @@ export async function runCheckJob(
   db: JobDatabase,
   jobId: string,
   url: string,
-  opts: { maxPages: number; concurrency: number; queryCount: number; outputDir: string },
+  opts: { maxPages: number; concurrency: number; queryCount: number; outputDir: string; region?: string | null },
 ): Promise<void> {
   try {
     db.updateJobRunning(jobId);
@@ -169,7 +169,7 @@ export async function runCheckJob(
     }
 
     // Dynamic imports for checker modules
-    const { extractBusinessContext, generateQueries } = await import('../checker/query-generator.js');
+    const { extractBusinessContext, generateQueries, generatePageQueries } = await import('../checker/query-generator.js');
     const { detectCitation } = await import('../checker/citation-detector.js');
     const { scoreEngines, calculateOverallScore, scoreToGrade } = await import('../checker/visibility-scorer.js');
     const { generateVisibilityHtml, generateVisibilityJson } = await import('../checker/visibility-report.js');
@@ -209,6 +209,9 @@ export async function runCheckJob(
     // Stage 2: Extract business context
     emit(jobId, 'context', 'Extracting business context...', 20);
     const businessContext = extractBusinessContext(crawlResult);
+    if (opts.region) {
+      businessContext.location = opts.region;
+    }
     emit(jobId, 'context', `Context: ${businessContext.name}`, 25);
 
     // Stage 3: Generate queries
@@ -220,7 +223,13 @@ export async function runCheckJob(
     else if (process.env.ANTHROPIC_API_KEY) { genApiKey = process.env.ANTHROPIC_API_KEY; genProvider = 'anthropic'; }
 
     const queries = await generateQueries(businessContext, opts.queryCount, genApiKey, genProvider);
-    emit(jobId, 'queries', `Generated ${queries.length} queries`, 35);
+    const siteWideCount = queries.length;
+
+    // Generate page-specific queries (additive)
+    const pageQueries = await generatePageQueries(crawlResult.pages, businessContext, genApiKey, genProvider);
+    queries.push(...pageQueries);
+
+    emit(jobId, 'queries', `Generated ${queries.length} queries (${siteWideCount} site-wide + ${pageQueries.length} page-specific)`, 35);
 
     // Stage 4: Run queries
     emit(jobId, 'search', 'Querying AI engines...', 40);

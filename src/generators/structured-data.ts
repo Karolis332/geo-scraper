@@ -107,9 +107,10 @@ export function generateStructuredData(crawlResult: SiteCrawlResult): Structured
 
     // Article / BlogPosting detection (skip if page already has Article or BlogPosting)
     if (isArticlePage(page) && !pageExistingTypes.has('Article') && !pageExistingTypes.has('BlogPosting')) {
+      const articleType = isBlogPage(page.url) ? 'BlogPosting' : 'Article';
       schemas.push({
         '@context': 'https://schema.org',
-        '@type': isBlogPage(page.url) ? 'BlogPosting' : 'Article',
+        '@type': articleType,
         headline: page.meta.title,
         url: page.url,
         ...(page.meta.description && { description: page.meta.description }),
@@ -125,6 +126,10 @@ export function generateStructuredData(crawlResult: SiteCrawlResult): Structured
           ...(siteIdentity.logoUrl && {
             logo: { '@type': 'ImageObject', url: resolveUrl(siteIdentity.logoUrl, baseUrl) },
           }),
+        },
+        speakable: {
+          '@type': 'SpeakableSpecification',
+          cssSelector: ['h1', 'h2', '.article-summary', '[itemprop="description"]'],
         },
       });
     }
@@ -206,12 +211,24 @@ function detectHowToSteps(page: PageData): { name: string; text: string }[] {
   const steps: { name: string; text: string }[] = [];
   const { headings, bodyText } = page.content;
 
+  // Split body text into sections by heading text to grab following paragraph content
+  const getTextAfterHeading = (headingText: string): string => {
+    const idx = bodyText.indexOf(headingText);
+    if (idx === -1) return headingText;
+    const after = bodyText.slice(idx + headingText.length).trim();
+    // Grab first ~200 chars or up to the next sentence boundary
+    const snippet = after.slice(0, 300);
+    const sentenceEnd = snippet.search(/\.\s/);
+    if (sentenceEnd > 20) return snippet.slice(0, sentenceEnd + 1).trim();
+    return snippet.slice(0, 200).trim() || headingText;
+  };
+
   // Look for numbered step headings: "Step 1:", "1.", etc.
   for (const heading of headings) {
     if (/^(step\s+\d+|^\d+[.)]\s)/i.test(heading.text)) {
       steps.push({
         name: heading.text,
-        text: heading.text, // Simplified — would ideally grab following paragraph
+        text: getTextAfterHeading(heading.text),
       });
     }
   }
@@ -221,7 +238,7 @@ function detectHowToSteps(page: PageData): { name: string; text: string }[] {
     // Use H2/H3 headings as steps
     const subHeadings = headings.filter(h => h.level === 2 || h.level === 3);
     for (const h of subHeadings) {
-      steps.push({ name: h.text, text: h.text });
+      steps.push({ name: h.text, text: getTextAfterHeading(h.text) });
     }
   }
 

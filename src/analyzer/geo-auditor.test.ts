@@ -19,7 +19,7 @@ describe('auditSite', () => {
 
   it('scores low for empty site with no GEO files', () => {
     const crawl = createMockCrawlResult({
-      pages: [createMockPageData({ content: { headings: [], bodyText: '', wordCount: 0, faqItems: [], lists: [], tables: [] } })],
+      pages: [createMockPageData({ content: { headings: [], bodyText: '', wordCount: 0, faqItems: [], lists: [], tables: [], citations: { statistics: [], sources: [], quotes: [] } } })],
     });
     const result = auditSite(crawl);
     expect(result.overallScore).toBeLessThan(50);
@@ -165,7 +165,7 @@ describe('auditSite', () => {
             canonical: null, language: 'en', ogTitle: 'Test', ogDescription: 'Test desc',
             ogImage: null, ogType: null, ogSiteName: null, twitterCard: null,
             twitterTitle: null, twitterDescription: null, twitterImage: null,
-            author: null, publishedDate: null, modifiedDate: '2025-06-01',
+            author: null, authorBio: null, publishedDate: null, modifiedDate: '2025-06-01',
             keywords: [], robots: null, googleVerification: null, bingVerification: null, yandexVerification: null, viewport: 'width=device-width, initial-scale=1',
           },
           content: {
@@ -173,7 +173,7 @@ describe('auditSite', () => {
             bodyText: 'word '.repeat(600),
             wordCount: 600,
             faqItems: [{ question: 'Q?', answer: 'A.' }],
-            lists: [], tables: [],
+            lists: [], tables: [], citations: { statistics: [], sources: [], quotes: [] },
           },
           existingStructuredData: {
             jsonLd: [{ '@type': 'Organization' }, { '@type': 'WebSite' }, { '@type': 'FAQPage' }],
@@ -425,7 +425,7 @@ describe('auditSite', () => {
       const result = auditSite(createMockCrawlResult({
         pages: [createMockPageData({
           url: 'https://example.com/thin',
-          content: { headings: [], bodyText: 'short', wordCount: 10, faqItems: [], lists: [], tables: [] },
+          content: { headings: [], bodyText: 'short', wordCount: 10, faqItems: [], lists: [], tables: [], citations: { statistics: [], sources: [], quotes: [] } },
         })],
       }));
       const item = result.items.find(i => i.name === 'Content Structure & Depth')!;

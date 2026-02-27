@@ -9,7 +9,7 @@ export const MAX_AFFECTED_URLS = 20;
 
 export interface AuditItem {
   name: string;
-  category: 'critical' | 'high' | 'medium' | 'low' | 'seo';
+  category: 'critical' | 'high' | 'medium' | 'low' | 'seo' | 'eeat' | 'aeo';
   score: number;       // 0-100
   maxScore: number;
   status: 'pass' | 'partial' | 'fail' | 'not_applicable';
@@ -29,6 +29,8 @@ export interface AuditResult {
     medium: { passed: number; total: number };
     low: { passed: number; total: number };
     seo: { passed: number; total: number };
+    eeat: { passed: number; total: number };
+    aeo: { passed: number; total: number };
   };
 }
 
@@ -184,8 +186,22 @@ export function auditSite(crawlResult: SiteCrawlResult): AuditResult {
   // 22. Broken Pages
   items.push(auditBrokenPages(crawlResult));
 
+  // ===== E-E-A-T CHECKS =====
+
+  items.push(auditAuthorExpertise(crawlResult));
+  items.push(auditTrustSignals(crawlResult));
+  items.push(auditSocialProof(crawlResult));
+  items.push(auditCitationQuality(crawlResult));
+
+  // ===== AEO CHECKS =====
+
+  items.push(auditFeaturedSnippetReadiness(crawlResult));
+  items.push(auditVoiceSearchOptimization(crawlResult));
+  items.push(auditAnswerFormatDiversity(crawlResult));
+  items.push(auditSchemaMarkupDiversity(crawlResult));
+
   // Calculate scores
-  const weights = { critical: 3, high: 2, medium: 1, low: 0.5, seo: 1.5 };
+  const weights: Record<string, number> = { critical: 3, high: 2, medium: 1, low: 0.5, seo: 1.5, eeat: 1.5, aeo: 1.5 };
   let totalWeightedScore = 0;
   let totalWeightedMax = 0;
 
@@ -195,6 +211,8 @@ export function auditSite(crawlResult: SiteCrawlResult): AuditResult {
     medium: { passed: 0, total: 0 },
     low: { passed: 0, total: 0 },
     seo: { passed: 0, total: 0 },
+    eeat: { passed: 0, total: 0 },
+    aeo: { passed: 0, total: 0 },
   };
 
   for (const item of items) {
@@ -1244,6 +1262,373 @@ function auditBrokenPages(crawlResult: SiteCrawlResult): AuditItem {
       ? 'Fix or remove broken pages (4xx/5xx status codes). Broken pages waste crawl budget and harm user experience.'
       : 'No broken pages detected',
     ...(affectedUrls.length > 0 ? { affectedUrls } : {}),
+  };
+}
+
+// ===== E-E-A-T AUDIT FUNCTIONS =====
+
+function auditAuthorExpertise(crawlResult: SiteCrawlResult): AuditItem {
+  const { pages } = crawlResult;
+  if (pages.length === 0) {
+    return { name: 'Author & Expertise Signals', category: 'eeat', score: 0, maxScore: 100, status: 'not_applicable', details: 'No pages crawled', recommendation: 'Crawl pages to assess author signals' };
+  }
+
+  let pagesWithAuthor = 0;
+  let pagesWithBio = 0;
+  const affectedUrls: string[] = [];
+
+  // Only check content pages (>200 words)
+  const contentPages = pages.filter(p => p.content.wordCount > 200);
+
+  for (const page of contentPages) {
+    const hasAuthor = !!page.meta.author;
+    const hasBio = !!page.meta.authorBio;
+    if (hasAuthor) pagesWithAuthor++;
+    if (hasBio) pagesWithBio++;
+    if (!hasAuthor && affectedUrls.length < MAX_AFFECTED_URLS) affectedUrls.push(page.url);
+  }
+
+  if (contentPages.length === 0) {
+    return { name: 'Author & Expertise Signals', category: 'eeat', score: 50, maxScore: 100, status: 'partial', details: 'No content pages (>200 words) found to assess', recommendation: 'Add substantive content pages with author attribution' };
+  }
+
+  const authorCoverage = pagesWithAuthor / contentPages.length;
+  const bioCoverage = contentPages.length > 0 ? pagesWithBio / contentPages.length : 0;
+
+  // Author attribution (60pts) + author bios (40pts)
+  const score = Math.min(100, Math.round(authorCoverage * 60 + bioCoverage * 40));
+
+  return {
+    name: 'Author & Expertise Signals',
+    category: 'eeat',
+    score,
+    maxScore: 100,
+    status: score >= 60 ? 'pass' : score > 0 ? 'partial' : 'fail',
+    details: `${pagesWithAuthor}/${contentPages.length} content pages have author attribution, ${pagesWithBio} with author bios`,
+    recommendation: score < 60
+      ? 'Add author names and bios to content pages. AI engines use author signals for E-E-A-T (Experience, Expertise, Authoritativeness, Trust) scoring.'
+      : 'Author expertise signals are present',
+    ...(affectedUrls.length > 0 ? { affectedUrls } : {}),
+  };
+}
+
+function auditTrustSignals(crawlResult: SiteCrawlResult): AuditItem {
+  const { siteIdentity, pages } = crawlResult;
+  let score = 0;
+  const signals: string[] = [];
+  const missing: string[] = [];
+
+  // Contact info (30pts)
+  const hasEmail = !!siteIdentity.contactEmail;
+  const hasPhone = !!siteIdentity.contactPhone;
+  const hasAddress = !!siteIdentity.address;
+  const contactScore = (hasEmail ? 10 : 0) + (hasPhone ? 10 : 0) + (hasAddress ? 10 : 0);
+  score += contactScore;
+  if (hasEmail) signals.push('email');
+  if (hasPhone) signals.push('phone');
+  if (hasAddress) signals.push('address');
+  if (!hasEmail && !hasPhone && !hasAddress) missing.push('contact information (email, phone, or address)');
+
+  // About page (25pts)
+  const hasAbout = pages.some(p => {
+    const path = new URL(p.url).pathname.toLowerCase();
+    return /\/(about|apie|about-us|company)/.test(path);
+  });
+  if (hasAbout) { score += 25; signals.push('about page'); }
+  else missing.push('about/company page');
+
+  // Privacy/Terms pages (25pts)
+  const hasPrivacy = pages.some(p => /\/(privacy|privatumas)/i.test(new URL(p.url).pathname));
+  const hasTerms = pages.some(p => /\/(terms|salygos|conditions)/i.test(new URL(p.url).pathname));
+  if (hasPrivacy) { score += 15; signals.push('privacy policy'); }
+  else missing.push('privacy policy page');
+  if (hasTerms) { score += 10; signals.push('terms page'); }
+
+  // Site identity consistency (20pts)
+  if (siteIdentity.name) { score += 10; signals.push('site name'); }
+  if (siteIdentity.logoUrl) { score += 10; signals.push('logo'); }
+
+  score = Math.min(100, score);
+
+  return {
+    name: 'Trust Signals',
+    category: 'eeat',
+    score,
+    maxScore: 100,
+    status: score >= 60 ? 'pass' : score > 0 ? 'partial' : 'fail',
+    details: `Trust signals found: ${signals.join(', ') || 'none'}${missing.length > 0 ? '. Missing: ' + missing.join(', ') : ''}`,
+    recommendation: score < 60
+      ? 'Add trust signals: contact information, about page, privacy policy. These are critical for E-E-A-T trust assessment by AI engines.'
+      : 'Trust signals are well-established',
+  };
+}
+
+function auditSocialProof(crawlResult: SiteCrawlResult): AuditItem {
+  const { siteIdentity } = crawlResult;
+  const socialLinks = siteIdentity.socialLinks;
+  const platforms = new Set(socialLinks.map(s => s.platform.toLowerCase()));
+
+  let score = 0;
+
+  // Social link count (60pts)
+  const linkCount = socialLinks.length;
+  score += Math.min(60, linkCount * 15);
+
+  // Platform diversity (40pts) — different types of platforms
+  const majorPlatforms = ['facebook', 'twitter', 'x', 'linkedin', 'instagram', 'youtube', 'github', 'tiktok'];
+  const majorCount = majorPlatforms.filter(p => platforms.has(p)).length;
+  score += Math.min(40, majorCount * 10);
+
+  score = Math.min(100, score);
+
+  return {
+    name: 'Social Proof & Authority',
+    category: 'eeat',
+    score,
+    maxScore: 100,
+    status: score >= 60 ? 'pass' : score > 0 ? 'partial' : 'fail',
+    details: `${socialLinks.length} social media links across ${platforms.size} platforms${platforms.size > 0 ? ': ' + Array.from(platforms).join(', ') : ''}`,
+    recommendation: score < 60
+      ? 'Add social media profile links to your site. Multiple platform presence signals authority and helps AI engines verify entity identity.'
+      : 'Social proof signals are strong',
+  };
+}
+
+function auditCitationQuality(crawlResult: SiteCrawlResult): AuditItem {
+  const { pages } = crawlResult;
+  let pagesWithStats = 0;
+  let pagesWithSources = 0;
+  let pagesWithExtLinks = 0;
+  const affectedUrls: string[] = [];
+
+  const contentPages = pages.filter(p => p.content.wordCount > 200);
+
+  for (const page of contentPages) {
+    const hasStats = page.content.citations.statistics.length > 0;
+    const hasSources = page.content.citations.sources.length > 0 || page.content.citations.quotes.length > 0;
+    const hasExtLinks = page.externalLinks.length > 0;
+
+    if (hasStats) pagesWithStats++;
+    if (hasSources) pagesWithSources++;
+    if (hasExtLinks) pagesWithExtLinks++;
+
+    if (!hasStats && !hasSources && affectedUrls.length < MAX_AFFECTED_URLS) {
+      affectedUrls.push(page.url);
+    }
+  }
+
+  if (contentPages.length === 0) {
+    return { name: 'Citation Quality', category: 'eeat', score: 0, maxScore: 100, status: 'not_applicable', details: 'No content pages found', recommendation: 'Add content pages with citations and data' };
+  }
+
+  const statsRatio = pagesWithStats / contentPages.length;
+  const sourceRatio = pagesWithSources / contentPages.length;
+  const extLinkRatio = pagesWithExtLinks / contentPages.length;
+
+  // Statistics (35pts) + source citations (35pts) + external authority links (30pts)
+  const score = Math.min(100, Math.round(statsRatio * 35 + sourceRatio * 35 + extLinkRatio * 30));
+
+  return {
+    name: 'Citation Quality',
+    category: 'eeat',
+    score,
+    maxScore: 100,
+    status: score >= 60 ? 'pass' : score > 0 ? 'partial' : 'fail',
+    details: `${pagesWithStats}/${contentPages.length} pages with statistics, ${pagesWithSources} with source citations, ${pagesWithExtLinks} with external links`,
+    recommendation: score < 60
+      ? 'Add data-backed claims (statistics, research citations, expert quotes) to content pages. AI engines favor well-cited content for featured responses.'
+      : 'Content is well-cited with data and sources',
+    ...(affectedUrls.length > 0 ? { affectedUrls } : {}),
+  };
+}
+
+// ===== AEO AUDIT FUNCTIONS =====
+
+function auditFeaturedSnippetReadiness(crawlResult: SiteCrawlResult): AuditItem {
+  const { pages } = crawlResult;
+  let snippetReadyPages = 0;
+  let definitionPages = 0;
+  const affectedUrls: string[] = [];
+
+  const contentPages = pages.filter(p => p.content.wordCount > 100);
+
+  for (const page of contentPages) {
+    const { headings, bodyText } = page.content;
+    let hasSnippetParagraph = false;
+
+    // Check for concise answer paragraphs (40-60 words) following headings
+    // We approximate by looking at the body text for paragraph-sized chunks
+    const paragraphs = bodyText.split(/\.\s+/).filter(s => s.trim().length > 0);
+    for (const para of paragraphs) {
+      const words = para.split(/\s+/).length;
+      if (words >= 30 && words <= 70) {
+        hasSnippetParagraph = true;
+        break;
+      }
+    }
+
+    // Check for definition-style content ("X is...", "X refers to...")
+    const hasDefinition = /\b(?:is a|is an|refers to|is defined as|means)\b/i.test(bodyText);
+    if (hasDefinition) definitionPages++;
+
+    if (hasSnippetParagraph) {
+      snippetReadyPages++;
+    } else {
+      if (affectedUrls.length < MAX_AFFECTED_URLS) affectedUrls.push(page.url);
+    }
+  }
+
+  if (contentPages.length === 0) {
+    return { name: 'Featured Snippet Readiness', category: 'aeo', score: 0, maxScore: 100, status: 'not_applicable', details: 'No content pages found', recommendation: 'Add content pages optimized for featured snippets' };
+  }
+
+  const snippetRatio = snippetReadyPages / contentPages.length;
+  const defRatio = definitionPages / contentPages.length;
+
+  // Snippet-length paragraphs (70pts) + definition content (30pts)
+  const score = Math.min(100, Math.round(snippetRatio * 70 + defRatio * 30));
+
+  return {
+    name: 'Featured Snippet Readiness',
+    category: 'aeo',
+    score,
+    maxScore: 100,
+    status: score >= 60 ? 'pass' : score > 0 ? 'partial' : 'fail',
+    details: `${snippetReadyPages}/${contentPages.length} pages have snippet-ready paragraphs (30-70 words), ${definitionPages} with definition-style content`,
+    recommendation: score < 60
+      ? 'Add concise answer paragraphs (40-60 words) directly under headings. Include "what is X" definitions. These formats are preferred for AI-generated featured snippets.'
+      : 'Content is well-optimized for featured snippets',
+    ...(affectedUrls.length > 0 ? { affectedUrls } : {}),
+  };
+}
+
+function auditVoiceSearchOptimization(crawlResult: SiteCrawlResult): AuditItem {
+  const { pages } = crawlResult;
+  let questionHeadings = 0;
+  let totalHeadings = 0;
+  let pagesWithShortAnswers = 0;
+  const affectedUrls: string[] = [];
+
+  const contentPages = pages.filter(p => p.content.wordCount > 100);
+
+  for (const page of contentPages) {
+    let hasQuestionHeading = false;
+    let hasShortAnswer = false;
+
+    for (const h of page.content.headings) {
+      totalHeadings++;
+      // Natural language headings (questions)
+      if (/\?$/.test(h.text) || /^(how|what|why|when|where|who|which|can|does|is|are|should)\b/i.test(h.text)) {
+        questionHeadings++;
+        hasQuestionHeading = true;
+      }
+    }
+
+    // Short direct answers — sentences under 30 words
+    const sentences = page.content.bodyText.split(/[.!?]+/).filter(s => s.trim().length > 10);
+    const shortAnswers = sentences.filter(s => s.trim().split(/\s+/).length <= 30 && s.trim().split(/\s+/).length >= 5);
+    if (shortAnswers.length > 0) {
+      hasShortAnswer = true;
+      pagesWithShortAnswers++;
+    }
+
+    if (!hasQuestionHeading && affectedUrls.length < MAX_AFFECTED_URLS) {
+      affectedUrls.push(page.url);
+    }
+  }
+
+  if (contentPages.length === 0) {
+    return { name: 'Voice Search Optimization', category: 'aeo', score: 0, maxScore: 100, status: 'not_applicable', details: 'No content pages found', recommendation: 'Add content optimized for voice search queries' };
+  }
+
+  const questionRatio = totalHeadings > 0 ? questionHeadings / totalHeadings : 0;
+  const shortAnswerRatio = pagesWithShortAnswers / contentPages.length;
+
+  // Question headings (50pts) + short direct answers (50pts)
+  const score = Math.min(100, Math.round(questionRatio * 50 + shortAnswerRatio * 50));
+
+  return {
+    name: 'Voice Search Optimization',
+    category: 'aeo',
+    score,
+    maxScore: 100,
+    status: score >= 60 ? 'pass' : score > 0 ? 'partial' : 'fail',
+    details: `${questionHeadings}/${totalHeadings} headings are questions, ${pagesWithShortAnswers}/${contentPages.length} pages have short direct answers`,
+    recommendation: score < 60
+      ? 'Use question-format headings (How, What, Why...) and provide direct, concise answers. Voice assistants prefer natural language Q&A formatting.'
+      : 'Content is well-optimized for voice search',
+    ...(affectedUrls.length > 0 ? { affectedUrls } : {}),
+  };
+}
+
+function auditAnswerFormatDiversity(crawlResult: SiteCrawlResult): AuditItem {
+  const { pages } = crawlResult;
+  let pagesWithTables = 0;
+  let pagesWithOrderedLists = 0;
+  let pagesWithFaq = 0;
+  let pagesWithHowTo = 0;
+
+  for (const page of pages) {
+    if (page.content.tables.length > 0) pagesWithTables++;
+    if (page.content.lists.length > 0) pagesWithOrderedLists++;
+    if (page.content.faqItems.length > 0) pagesWithFaq++;
+    // HowTo detection: step-like headings
+    const hasSteps = page.content.headings.some(h => /^(step\s+\d+|^\d+[.)]\s)/i.test(h.text));
+    if (hasSteps) pagesWithHowTo++;
+  }
+
+  const formatTypes = [pagesWithTables > 0, pagesWithOrderedLists > 0, pagesWithFaq > 0, pagesWithHowTo > 0];
+  const diversityCount = formatTypes.filter(Boolean).length;
+
+  // Diversity of formats (60pts, 15 per type) + coverage breadth (40pts)
+  const diversityScore = diversityCount * 15;
+  const totalFormatted = pages.length > 0
+    ? (pagesWithTables + pagesWithOrderedLists + pagesWithFaq + pagesWithHowTo) / (pages.length * 4)
+    : 0;
+  const coverageScore = Math.round(totalFormatted * 40);
+
+  const score = Math.min(100, diversityScore + coverageScore);
+
+  return {
+    name: 'Answer Format Diversity',
+    category: 'aeo',
+    score,
+    maxScore: 100,
+    status: score >= 60 ? 'pass' : score > 0 ? 'partial' : 'fail',
+    details: `Format types: tables (${pagesWithTables} pages), lists (${pagesWithOrderedLists}), FAQ (${pagesWithFaq}), HowTo steps (${pagesWithHowTo}). ${diversityCount}/4 format types used.`,
+    recommendation: score < 60
+      ? 'Diversify answer formats: add comparison tables, numbered steps, FAQ sections, and ordered lists. AI engines select different formats for different query types.'
+      : 'Good diversity of answer formats',
+  };
+}
+
+function auditSchemaMarkupDiversity(crawlResult: SiteCrawlResult): AuditItem {
+  const { pages } = crawlResult;
+  const schemaTypes = new Set<string>();
+
+  for (const page of pages) {
+    for (const item of page.existingStructuredData.jsonLd) {
+      const type = item['@type'] as string;
+      if (type) schemaTypes.add(type);
+    }
+  }
+
+  const valuableTypes = ['FAQPage', 'HowTo', 'Article', 'BlogPosting', 'Product', 'BreadcrumbList', 'Organization', 'WebSite', 'LocalBusiness', 'Review'];
+  const foundValuable = valuableTypes.filter(t => schemaTypes.has(t));
+
+  // Diverse schema types: 25pts per type up to 100
+  const score = Math.min(100, foundValuable.length * 25);
+
+  return {
+    name: 'Schema Markup Diversity',
+    category: 'aeo',
+    score,
+    maxScore: 100,
+    status: score >= 60 ? 'pass' : score > 0 ? 'partial' : 'fail',
+    details: `${schemaTypes.size} schema types found${foundValuable.length > 0 ? ': ' + foundValuable.join(', ') : ''}. ${foundValuable.length} high-value types for AEO.`,
+    recommendation: score < 60
+      ? 'Add diverse schema types: FAQPage, HowTo, Article, Product, BreadcrumbList. Each schema type enables different AI answer formats.'
+      : 'Schema markup diversity is strong',
   };
 }
 

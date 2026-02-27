@@ -5,6 +5,26 @@
 import type { CheerioAPI } from 'cheerio';
 import type { PageMeta } from '../crawler/page-data.js';
 
+function extractAuthorBio($: CheerioAPI): string | null {
+  // Try itemprop="author" with nested description
+  const authorDesc = $('[itemprop="author"] [itemprop="description"]').first().text().trim();
+  if (authorDesc && authorDesc.length > 10) return authorDesc;
+
+  // Try .author-bio class
+  const authorBio = $('.author-bio').first().text().trim();
+  if (authorBio && authorBio.length > 10) return authorBio;
+
+  // Try rel="author" link text context (surrounding paragraph)
+  const authorLink = $('a[rel="author"]').first();
+  if (authorLink.length) {
+    const parent = authorLink.closest('p, div, span');
+    const text = parent.text().trim();
+    if (text && text.length > 20 && text.length < 500) return text;
+  }
+
+  return null;
+}
+
 export function extractMeta($: CheerioAPI, url: string): PageMeta {
   const getMeta = (name: string): string | null => {
     return (
@@ -65,6 +85,7 @@ export function extractMeta($: CheerioAPI, url: string): PageMeta {
     twitterDescription: getMeta('twitter:description'),
     twitterImage: getMeta('twitter:image'),
     author: getMeta('author') || $('meta[name="author"]').attr('content') || null,
+    authorBio: extractAuthorBio($),
     publishedDate,
     modifiedDate,
     keywords,

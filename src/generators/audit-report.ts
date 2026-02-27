@@ -29,6 +29,12 @@ interface ReportStrings {
   seo: string;
   seoBadge: string;
   seoChecks: string;
+  eeat: string;
+  eeatBadge: string;
+  eeatChecks: string;
+  aeo: string;
+  aeoBadge: string;
+  aeoChecks: string;
   actionItemsTitle: string;
   actionItemsIntro: string;
   actionCurrentScore: string;
@@ -68,6 +74,12 @@ const STRINGS_EN: ReportStrings = {
   seo: 'SEO',
   seoBadge: 'seo',
   seoChecks: 'SEO Checks',
+  eeat: 'E-E-A-T',
+  eeatBadge: 'e-e-a-t',
+  eeatChecks: 'E-E-A-T Checks',
+  aeo: 'AEO',
+  aeoBadge: 'aeo',
+  aeoChecks: 'AEO Checks',
   actionItemsTitle: 'Your Action Items',
   actionItemsIntro: 'The items below <strong>cannot be auto-generated</strong> &mdash; they require content changes, configuration updates, or development work on your website. We&rsquo;ve sorted them by impact so you can prioritize what matters most.',
   actionCurrentScore: 'Current score',
@@ -115,6 +127,12 @@ const STRINGS_LT: ReportStrings = {
   seo: 'SEO',
   seoBadge: 'seo',
   seoChecks: 'SEO patikrinimai',
+  eeat: 'E-E-A-T',
+  eeatBadge: 'e-e-a-t',
+  eeatChecks: 'E-E-A-T patikrinimai',
+  aeo: 'AEO',
+  aeoBadge: 'aeo',
+  aeoChecks: 'AEO patikrinimai',
   actionItemsTitle: 'Jūsų veiksmai',
   actionItemsIntro: 'Šie punktai <strong>negali būti sugeneruoti automatiškai</strong> &mdash; jiems reikia turinio pakeitimų, konfigūracijos atnaujinimų arba programavimo darbų jūsų svetainėje. Surikiavome pagal svarbą, kad galėtumėte nustatyti prioritetus.',
   actionCurrentScore: 'Dabartinis balas',
@@ -166,6 +184,16 @@ const ITEM_NAMES_LT: Record<string, string> = {
   'Mobile Viewport': 'Mobilusis rodymo laukas',
   'HTTPS Enforcement': 'HTTPS užtikrinimas',
   'Broken Pages': 'Neveikiantys puslapiai',
+  // E-E-A-T
+  'Author & Expertise Signals': 'Autoriaus ir kompetencijos signalai',
+  'Trust Signals': 'Pasitikėjimo signalai',
+  'Social Proof & Authority': 'Socialiniai įrodymai ir autoritetas',
+  'Citation Quality': 'Citavimo kokybė',
+  // AEO
+  'Featured Snippet Readiness': 'Pasirengimas išskirtiniams fragmentams',
+  'Voice Search Optimization': 'Balso paieškos optimizavimas',
+  'Answer Format Diversity': 'Atsakymų formatų įvairovė',
+  'Schema Markup Diversity': 'Schemos žymėjimo įvairovė',
 };
 
 /** Map of audit item recommendations → Lithuanian translations */
@@ -306,6 +334,40 @@ const ITEM_RECS_LT: Record<string, string> = {
     'Pataisykite arba pašalinkite neveikiančius puslapius (4xx/5xx būsenos kodai). Neveikiantys puslapiai švaisto nuskaitymo biudžetą ir kenkia naudotojo patirčiai.',
   'No broken pages detected':
     'Neveikiančių puslapių nerasta',
+  // E-E-A-T
+  'Add author names and bios to content pages. AI engines use author signals for E-E-A-T (Experience, Expertise, Authoritativeness, Trust) scoring.':
+    'Pridėkite autorių vardus ir biografijas turinio puslapiuose. DI varikliai naudoja autoriaus signalus E-E-A-T (Patirtis, Kompetencija, Autoritetingumas, Pasitikėjimas) vertinimui.',
+  'Author expertise signals are present':
+    'Autoriaus kompetencijos signalai yra',
+  'Add trust signals: contact information, about page, privacy policy. These are critical for E-E-A-T trust assessment by AI engines.':
+    'Pridėkite pasitikėjimo signalus: kontaktinę informaciją, puslapį „Apie mus", privatumo politiką. Tai svarbu DI variklių E-E-A-T pasitikėjimo vertinimui.',
+  'Trust signals are well-established':
+    'Pasitikėjimo signalai gerai įtvirtinti',
+  'Add social media profile links to your site. Multiple platform presence signals authority and helps AI engines verify entity identity.':
+    'Pridėkite socialinių tinklų profilių nuorodas į savo svetainę. Buvimas keliose platformose signalizuoja autoritetą ir padeda DI varikliams patvirtinti subjekto tapatybę.',
+  'Social proof signals are strong':
+    'Socialinių įrodymų signalai stiprūs',
+  'Add data-backed claims (statistics, research citations, expert quotes) to content pages. AI engines favor well-cited content for featured responses.':
+    'Pridėkite duomenimis pagrįstus teiginius (statistiką, tyrimų citatas, ekspertų citatas) turinio puslapiuose. DI varikliai teikia pirmenybę gerai cituojamam turiniui.',
+  'Content is well-cited with data and sources':
+    'Turinys gerai cituojamas su duomenimis ir šaltiniais',
+  // AEO
+  'Add concise answer paragraphs (40-60 words) directly under headings. Include "what is X" definitions. These formats are preferred for AI-generated featured snippets.':
+    'Pridėkite glaustus atsakymų paragrafus (40-60 žodžių) tiesiai po antraštėmis. Įtraukite „kas yra X" apibrėžimus. Šie formatai yra pirmenybiniai DI generuojamiems išskirtiniams fragmentams.',
+  'Content is well-optimized for featured snippets':
+    'Turinys gerai optimizuotas išskirtiniams fragmentams',
+  'Use question-format headings (How, What, Why...) and provide direct, concise answers. Voice assistants prefer natural language Q&A formatting.':
+    'Naudokite klausimų formato antraštes (Kaip, Kas, Kodėl...) ir pateikite tiesioginius, glaustus atsakymus. Balso asistentai teikia pirmenybę natūralios kalbos klausimų-atsakymų formatui.',
+  'Content is well-optimized for voice search':
+    'Turinys gerai optimizuotas balso paieškai',
+  'Diversify answer formats: add comparison tables, numbered steps, FAQ sections, and ordered lists. AI engines select different formats for different query types.':
+    'Įvairinkite atsakymų formatus: pridėkite palyginimo lenteles, sunumeruotus žingsnius, DUK skyrius ir sunumeruotus sąrašus. DI varikliai pasirenka skirtingus formatus skirtingiems užklausų tipams.',
+  'Good diversity of answer formats':
+    'Gera atsakymų formatų įvairovė',
+  'Add diverse schema types: FAQPage, HowTo, Article, Product, BreadcrumbList. Each schema type enables different AI answer formats.':
+    'Pridėkite įvairius schemos tipus: FAQPage, HowTo, Article, Product, BreadcrumbList. Kiekvienas schemos tipas įgalina skirtingus DI atsakymų formatus.',
+  'Schema markup diversity is strong':
+    'Schemos žymėjimo įvairovė stipri',
 };
 
 /** Map of audit item details patterns → Lithuanian translations */
@@ -330,6 +392,8 @@ const ITEM_DETAILS_LT: Record<string, string> = {
   'No indexing signals found': 'Nerasta indeksavimo signalų',
   'No images found on crawled pages': 'Nuskaitytuose puslapiuose nerasta paveikslėlių',
   'All pages served over HTTPS': 'Visi puslapiai aptarnaujami per HTTPS',
+  'No content pages found': 'Nerasta turinio puslapių',
+  'No content pages (>200 words) found to assess': 'Nerasta turinio puslapių (>200 žodžių) vertinimui',
 };
 
 /** Client-facing action guides — professional, specific instructions per item */
@@ -402,6 +466,40 @@ const CLIENT_ACTION_GUIDES: Record<string, { en: string; lt: string }> = {
 
 <strong>Numatomas laikas:</strong> Nustačius GSC ir pateikus sitemap, pradinis indeksavimas paprastai užtrunka 2-7 dienas. Visų puslapių indeksavimas gali užtrukti 2-4 savaites, priklausomai nuo svetainės dydžio.`,
   },
+};
+
+// E-E-A-T action guides
+CLIENT_ACTION_GUIDES['Author & Expertise Signals'] = {
+  en: 'Your content pages lack author attribution. Add author names with bylines and author bio sections that highlight credentials, experience, and expertise. AI engines evaluate E-E-A-T (Experience, Expertise, Authoritativeness, Trust) signals — pages with clear author expertise rank higher in AI citations.',
+  lt: 'Jūsų turinio puslapiuose trūksta autoriaus priskyrimo. Pridėkite autorių vardus su pasirašymais ir autoriaus biografijos sekcijas, kurios pabrėžia kvalifikacijas, patirtį ir kompetenciją. DI varikliai vertina E-E-A-T signalus — puslapiai su aiškia autoriaus kompetencija yra aukščiau DI citavime.',
+};
+CLIENT_ACTION_GUIDES['Trust Signals'] = {
+  en: 'Your site is missing key trust signals. Add visible contact information (email, phone, physical address), create a dedicated About/Company page describing your organization, and ensure you have Privacy Policy and Terms of Service pages. These trust indicators are critical for AI engines evaluating your site\'s reliability.',
+  lt: 'Jūsų svetainėje trūksta pagrindinių pasitikėjimo signalų. Pridėkite matomą kontaktinę informaciją (el. paštą, telefoną, fizinį adresą), sukurkite atskirą „Apie mus" puslapį aprašantį organizaciją ir įsitikinkite, kad turite Privatumo politikos ir Naudojimo sąlygų puslapius.',
+};
+CLIENT_ACTION_GUIDES['Social Proof & Authority'] = {
+  en: 'Your site has limited social media presence. Add links to your social media profiles (LinkedIn, Facebook, Twitter/X, Instagram, YouTube, GitHub) in your site footer or contact page. Multiple verified platform profiles help AI engines confirm your entity identity and signal authority in your industry.',
+  lt: 'Jūsų svetainėje ribota socialinių tinklų prezencija. Pridėkite nuorodas į socialinių tinklų profilius (LinkedIn, Facebook, Twitter/X, Instagram, YouTube, GitHub) svetainės poraštėje arba kontaktų puslapyje.',
+};
+CLIENT_ACTION_GUIDES['Citation Quality'] = {
+  en: 'Your content lacks data-backed claims and source citations. Strengthen your content by adding statistics (e.g., "75% of users prefer..."), citing research studies and industry reports, including expert quotes, and linking to authoritative external sources. Well-cited content is significantly more likely to be used in AI-generated responses.',
+  lt: 'Jūsų turinyje trūksta duomenimis pagrįstų teiginių ir šaltinių citavimo. Sustiprinkite turinį pridėdami statistiką (pvz., „75% vartotojų teikia pirmenybę..."), cituodami tyrimus ir pramonės ataskaitas, įtraukdami ekspertų citatas ir nuorodas į autoritetinius išorinius šaltinius.',
+};
+CLIENT_ACTION_GUIDES['Featured Snippet Readiness'] = {
+  en: 'Your pages aren\'t optimized for featured snippets. Add concise answer paragraphs (40-60 words) directly under question headings. Include "what is X" definitions, step-by-step instructions, and comparison summaries. AI engines extract these paragraph-length answers for direct responses to user queries.',
+  lt: 'Jūsų puslapiai nėra optimizuoti išskirtiniams fragmentams. Pridėkite glaustus atsakymų paragrafus (40-60 žodžių) tiesiai po klausimų antraštėmis. Įtraukite „kas yra X" apibrėžimus, žingsnis po žingsnio instrukcijas ir palyginimo santraukas.',
+};
+CLIENT_ACTION_GUIDES['Voice Search Optimization'] = {
+  en: 'Your content isn\'t optimized for voice search. Use natural question-format headings like "How do I...", "What is...", "Why should...". Provide direct, concise answers (15-30 words) immediately after each question heading. Voice assistants read these short answer blocks aloud to users.',
+  lt: 'Jūsų turinys nėra optimizuotas balso paieškai. Naudokite natūralias klausimų formato antraštes kaip „Kaip aš galiu...", „Kas yra...", „Kodėl turėčiau...". Pateikite tiesioginius, glaustus atsakymus (15-30 žodžių) iš karto po kiekvienos klausimo antraštės.',
+};
+CLIENT_ACTION_GUIDES['Answer Format Diversity'] = {
+  en: 'Your site lacks diverse answer formats. AI engines select different content formats for different query types. Add: comparison tables (for "X vs Y" queries), numbered step lists (for "how to" queries), FAQ sections (for question queries), and definition paragraphs (for "what is" queries). This maximizes your chances of being featured across different AI response types.',
+  lt: 'Jūsų svetainėje trūksta įvairių atsakymų formatų. DI varikliai pasirenka skirtingus turinio formatus skirtingiems užklausų tipams. Pridėkite: palyginimo lenteles, sunumeruotus žingsnių sąrašus, DUK skyrius ir apibrėžimų paragrafus.',
+};
+CLIENT_ACTION_GUIDES['Schema Markup Diversity'] = {
+  en: 'Your site uses limited schema markup types. Add diverse JSON-LD schemas to enable different AI answer formats: FAQPage (for Q&A results), HowTo (for step-by-step results), Article/BlogPosting (for knowledge panels), Product (for shopping results), and BreadcrumbList (for navigation context). Each schema type opens a different AI citation pathway.',
+  lt: 'Jūsų svetainė naudoja ribotus schemos žymėjimo tipus. Pridėkite įvairius JSON-LD schemas: FAQPage (klausimų-atsakymų rezultatams), HowTo (žingsnis po žingsnio rezultatams), Article/BlogPosting (žinių skydeliams), Product (apsipirkimo rezultatams) ir BreadcrumbList (navigacijos kontekstui).',
 };
 
 const TRANSLATIONS: Record<string, ReportStrings> = { en: STRINGS_EN, lt: STRINGS_LT };
@@ -505,6 +603,8 @@ function translateCategory(category: string, lang: string): string {
     medium: 'vidutinis',
     low: 'žemas',
     seo: 'seo',
+    eeat: 'e-e-a-t',
+    aeo: 'aeo',
   };
   return map[category] || category;
 }
@@ -654,6 +754,8 @@ export function generateAuditReportHtml(
     .badge-medium { background: rgba(96,165,250,0.12); color: var(--blue); }
     .badge-low { background: rgba(161,161,170,0.12); color: var(--text-dim); }
     .badge-seo { background: rgba(45,212,191,0.12); color: #2dd4bf; }
+    .badge-eeat { background: rgba(168,85,247,0.12); color: #a855f7; }
+    .badge-aeo { background: rgba(236,72,153,0.12); color: #ec4899; }
     .audit-item {
       background: var(--surface);
       border: 1px solid var(--border);
@@ -912,6 +1014,14 @@ export function generateAuditReportHtml(
       <div class="value">${audit.summary.seo.passed}/${audit.summary.seo.total}</div>
     </div>
     <div class="stat-card">
+      <div class="label">${s.eeatChecks}</div>
+      <div class="value">${audit.summary.eeat.passed}/${audit.summary.eeat.total}</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">${s.aeoChecks}</div>
+      <div class="value">${audit.summary.aeo.passed}/${audit.summary.aeo.total}</div>
+    </div>
+    <div class="stat-card">
       <div class="label">${s.pagesCrawledLabel}</div>
       <div class="value">${crawlStats.totalPages}</div>
     </div>
@@ -924,6 +1034,8 @@ ${renderCategory(s.high, 'high', audit.items, lang)}
 ${renderCategory(s.medium, 'medium', audit.items, lang)}
 ${renderCategory(s.low, 'low', audit.items, lang)}
 ${renderCategory(s.seo, 'seo', audit.items, lang)}
+${renderCategory(s.eeat, 'eeat', audit.items, lang)}
+${renderCategory(s.aeo, 'aeo', audit.items, lang)}
 
 ${clientActionItems.length > 0 ? `
   <div class="action-items">
@@ -1063,7 +1175,7 @@ const AUTO_GENERATED_ITEMS = new Set([
 ]);
 
 /** Weight order for sorting: critical first, then high, medium, low */
-const CATEGORY_ORDER: Record<string, number> = { critical: 0, high: 1, seo: 2, medium: 3, low: 4 };
+const CATEGORY_ORDER: Record<string, number> = { critical: 0, high: 1, seo: 2, eeat: 3, aeo: 4, medium: 5, low: 6 };
 
 function getClientActionItems(audit: AuditResult): AuditItem[] {
   return audit.items

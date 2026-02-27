@@ -67,6 +67,7 @@ const checkCmd = new Command('check')
   .option('-q, --queries <n>', 'Number of queries to generate', '10')
   .option('--engines <list>', 'Comma-separated engines: openai,perplexity,gemini,claude')
   .option('--query-file <path>', 'File with custom queries (one per line)')
+  .option('-r, --region <region>', 'Geographic region for targeted queries')
   .option('-v, --verbose', 'Verbose output', false)
   .action(async (url: string, opts: Record<string, unknown>) => {
     try {
@@ -349,10 +350,11 @@ async function runCheck(rawUrl: string, opts: Record<string, unknown>): Promise<
     engines: opts.engines ? (opts.engines as string).split(',').map((e) => e.trim()) : [],
     queryFile: (opts.queryFile as string) || null,
     outputDir: join(opts.output as string || './geo-output', domain),
+    region: (opts.region as string) || null,
   };
 
   // Import checker modules
-  const { extractBusinessContext, generateQueries } = await import('./checker/query-generator.js');
+  const { extractBusinessContext, generateQueries, generatePageQueries } = await import('./checker/query-generator.js');
   const { detectCitation } = await import('./checker/citation-detector.js');
   const { scoreEngines, calculateOverallScore, scoreToGrade } = await import('./checker/visibility-scorer.js');
   const { generateVisibilityHtml, generateVisibilityJson } = await import('./checker/visibility-report.js');
@@ -397,6 +399,9 @@ async function runCheck(rawUrl: string, opts: Record<string, unknown>): Promise<
   console.log(`  ${chalk.dim('Target:')}   ${chalk.white(url)}`);
   console.log(`  ${chalk.dim('Engines:')}  ${chalk.white(clients.map((c) => c.name).join(', '))}`);
   console.log(`  ${chalk.dim('Queries:')}  ${chalk.white(String(options.queryCount))}`);
+  if (options.region) {
+    console.log(`  ${chalk.dim('Region:')}   ${chalk.white(options.region)}`);
+  }
   console.log('');
 
   // Stage 1: Crawl
@@ -416,6 +421,9 @@ async function runCheck(rawUrl: string, opts: Record<string, unknown>): Promise<
   // Stage 2: Extract business context
   const contextSpinner = ora({ text: 'Extracting business context...', color: 'cyan' }).start();
   const businessContext = extractBusinessContext(crawlResult);
+  if (options.region) {
+    businessContext.location = options.region;
+  }
   contextSpinner.succeed('Business context extracted');
 
   if (options.verbose) {
@@ -434,6 +442,13 @@ async function runCheck(rawUrl: string, opts: Record<string, unknown>): Promise<
 
   let queries: SearchQuery[];
 
+  // Determine which API to use for query generation (prefer cheapest available)
+  let genApiKey: string | null = null;
+  let genProvider: 'openai' | 'anthropic' | 'gemini' | null = null;
+  if (process.env.OPENAI_API_KEY) { genApiKey = process.env.OPENAI_API_KEY; genProvider = 'openai'; }
+  else if (process.env.GOOGLE_API_KEY) { genApiKey = process.env.GOOGLE_API_KEY; genProvider = 'gemini'; }
+  else if (process.env.ANTHROPIC_API_KEY) { genApiKey = process.env.ANTHROPIC_API_KEY; genProvider = 'anthropic'; }
+
   if (options.queryFile) {
     // Load custom queries from file
     const fileContent = await readFile(options.queryFile, 'utf-8');
@@ -447,24 +462,27 @@ async function runCheck(rawUrl: string, opts: Record<string, unknown>): Promise<
         intent: 'Custom query from file',
       }));
   } else {
-    // Determine which API to use for query generation (prefer cheapest available)
-    let genApiKey: string | null = null;
-    let genProvider: 'openai' | 'anthropic' | 'gemini' | null = null;
-    if (process.env.OPENAI_API_KEY) { genApiKey = process.env.OPENAI_API_KEY; genProvider = 'openai'; }
-    else if (process.env.GOOGLE_API_KEY) { genApiKey = process.env.GOOGLE_API_KEY; genProvider = 'gemini'; }
-    else if (process.env.ANTHROPIC_API_KEY) { genApiKey = process.env.ANTHROPIC_API_KEY; genProvider = 'anthropic'; }
-
     queries = await generateQueries(businessContext, options.queryCount, genApiKey, genProvider);
   }
 
-  querySpinner.succeed(`Generated ${chalk.bold(String(queries.length))} search queries`);
+  const siteWideCount = queries.length;
+
+  // Generate page-specific queries (additive, on top of site-wide)
+  const pageQueries = await generatePageQueries(crawlResult.pages, businessContext, genApiKey, genProvider);
+  queries.push(...pageQueries);
+
+  querySpinner.succeed(
+    `Generated ${chalk.bold(String(queries.length))} search queries` +
+    (pageQueries.length > 0 ? ` (${siteWideCount} site-wide + ${pageQueries.length} page-specific)` : '')
+  );
 
   if (options.verbose) {
     console.log('');
     console.log(chalk.bold('  Queries:'));
     for (let i = 0; i < queries.length; i++) {
       const q = queries[i];
-      console.log(`    ${chalk.dim(`${i + 1}.`)} ${chalk.dim(`[${q.category}]`.padEnd(14))} ${chalk.white(q.query)}`);
+      const targetInfo = q.targetPage ? ` ${chalk.dim('→')} ${chalk.dim(q.targetPage)}` : '';
+      console.log(`    ${chalk.dim(`${i + 1}.`)} ${chalk.dim(`[${q.category}]`.padEnd(14))} ${chalk.white(q.query)}${targetInfo}`);
     }
     console.log('');
   }

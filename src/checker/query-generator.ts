@@ -2,7 +2,17 @@
  * Business context extraction and search query generation.
  */
 
-import type { SiteCrawlResult, BusinessContext, SearchQuery } from '../crawler/page-data.js';
+import type { SiteCrawlResult, BusinessContext, SearchQuery, PageData } from '../crawler/page-data.js';
+import { classifyPageSection } from '../utils/url-utils.js';
+
+interface PageContext {
+  url: string;
+  title: string;
+  description: string;
+  section: string;
+  headings: string[];
+  snippet: string;
+}
 
 export function extractBusinessContext(crawlResult: SiteCrawlResult): BusinessContext {
   const { siteIdentity, pages, domain } = crawlResult;
@@ -238,6 +248,183 @@ function generateTemplateQueries(context: BusinessContext, count: number): Searc
   });
 
   return queries.slice(0, count);
+}
+
+// ============================================================================
+// Page-specific query generation
+// ============================================================================
+
+function selectImportantPages(pages: PageData[], maxPages = 10): PageContext[] {
+  const skipSections = new Set(['Main', 'Legal', 'Careers', 'Changelog']);
+  const keepSections = new Set(['Services', 'Products', 'Blog', 'Documentation', 'Examples', 'About', 'Support', 'Pages']);
+
+  const candidates: PageContext[] = [];
+
+  for (const page of pages) {
+    const section = classifyPageSection(page.url);
+    if (skipSections.has(section)) continue;
+    if (!keepSections.has(section)) continue;
+    if (page.content.wordCount < 100) continue;
+    if (!page.meta.title || page.meta.title.length < 5) continue;
+
+    candidates.push({
+      url: page.url,
+      title: page.meta.title,
+      description: page.meta.description || '',
+      section,
+      headings: page.content.headings
+        .filter((h) => h.level <= 2)
+        .map((h) => h.text)
+        .slice(0, 5),
+      snippet: page.content.bodyText.slice(0, 200),
+    });
+  }
+
+  return candidates.slice(0, maxPages);
+}
+
+export async function generatePageQueries(
+  pages: PageData[],
+  context: BusinessContext,
+  apiKey: string | null,
+  provider: 'openai' | 'anthropic' | 'gemini' | null,
+): Promise<SearchQuery[]> {
+  const importantPages = selectImportantPages(pages);
+  if (importantPages.length === 0) return [];
+
+  if (apiKey && provider) {
+    try {
+      return await generatePageQueriesViaLLM(importantPages, context, apiKey, provider);
+    } catch {
+      // Fall back to template-based
+    }
+  }
+
+  return generatePageTemplateQueries(importantPages, context);
+}
+
+async function generatePageQueriesViaLLM(
+  pages: PageContext[],
+  context: BusinessContext,
+  apiKey: string,
+  provider: 'openai' | 'anthropic' | 'gemini',
+): Promise<SearchQuery[]> {
+  const pageList = pages.map((p, i) =>
+    `${i + 1}. URL: ${p.url}\n   Title: ${p.title}\n   Section: ${p.section}\n   Headings: ${p.headings.join(', ') || 'none'}\n   Description: ${p.description || 'none'}`
+  ).join('\n');
+
+  const maxQueries = Math.min(pages.length * 2, 20);
+
+  const prompt = `Given this business and its individual pages, generate 1-2 targeted search queries PER PAGE that simulate how real users talk to AI assistants about that specific page's content. Queries should be in ${context.language === 'lt' ? 'Lithuanian' : context.language === 'en' ? 'English' : context.language || 'English'}.
+
+Business: ${context.name} (${context.domain}) — ${context.industry}${context.location ? ', ' + context.location : ''}
+
+Pages:
+${pageList}
+
+Generate up to ${maxQueries} queries total (1-2 per page). Each query should be specific to that page's content — not generic site-wide queries.
+
+Return ONLY a JSON array:
+[{"query": "...", "category": "page", "intent": "...", "targetPage": "<exact page URL>"}]`;
+
+  let responseText: string;
+
+  if (provider === 'openai') {
+    const { default: OpenAI } = await import('openai');
+    const client = new OpenAI({ apiKey });
+    const response = await client.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.7,
+      response_format: { type: 'json_object' },
+    });
+    responseText = response.choices[0]?.message?.content || '[]';
+  } else if (provider === 'anthropic') {
+    const { default: Anthropic } = await import('@anthropic-ai/sdk');
+    const client = new Anthropic({ apiKey });
+    const response = await client.messages.create({
+      model: 'claude-sonnet-4-5-20250929',
+      max_tokens: 1024,
+      messages: [{ role: 'user', content: prompt + '\n\nRespond with ONLY the JSON array, no other text.' }],
+    });
+    const block = response.content[0];
+    responseText = block.type === 'text' ? block.text : '[]';
+  } else {
+    const { GoogleGenAI } = await import('@google/genai');
+    const client = new GoogleGenAI({ apiKey });
+    const response = await client.models.generateContent({
+      model: 'gemini-2.0-flash',
+      contents: prompt + '\n\nRespond with ONLY the JSON array, no other text.',
+    });
+    responseText = response.text || '[]';
+  }
+
+  const parsed = JSON.parse(extractJsonArray(responseText));
+  const queries: SearchQuery[] = [];
+
+  if (Array.isArray(parsed)) {
+    for (const item of parsed) {
+      if (item.query && item.targetPage) {
+        queries.push({
+          query: item.query,
+          category: 'page',
+          intent: item.intent || '',
+          targetPage: item.targetPage,
+        });
+      }
+    }
+  }
+
+  return queries.slice(0, maxQueries);
+}
+
+function generatePageTemplateQueries(pages: PageContext[], context: BusinessContext): SearchQuery[] {
+  const queries: SearchQuery[] = [];
+  const loc = context.location || '';
+
+  for (const page of pages) {
+    const title = page.title;
+    let query: string;
+
+    switch (page.section) {
+      case 'Services':
+        query = loc
+          ? `how does ${context.name} ${title.toLowerCase()} compare to other providers in ${loc}`
+          : `what does ${context.name} offer for ${title.toLowerCase()} and is it worth it`;
+        break;
+      case 'Products':
+        query = `${title} by ${context.name} review and alternatives`;
+        break;
+      case 'Blog':
+        query = page.headings[0]
+          ? `explain ${page.headings[0].toLowerCase()} in detail`
+          : `${title.toLowerCase()} guide and best practices`;
+        break;
+      case 'Documentation':
+        query = page.headings[0]
+          ? `how to ${page.headings[0].toLowerCase()} with ${context.name}`
+          : `${context.name} ${title.toLowerCase()} documentation and examples`;
+        break;
+      case 'Examples':
+        query = `${context.name} ${title.toLowerCase()} examples and use cases`;
+        break;
+      case 'About':
+        query = `who is ${context.name} and what is their background in ${context.industry}`;
+        break;
+      default:
+        query = `${context.name} ${title.toLowerCase()} detailed information`;
+        break;
+    }
+
+    queries.push({
+      query,
+      category: 'page',
+      intent: `Page-specific: ${page.section} — ${title}`,
+      targetPage: page.url,
+    });
+  }
+
+  return queries.slice(0, 20);
 }
 
 function detectLanguage(pages: SiteCrawlResult['pages']): string {

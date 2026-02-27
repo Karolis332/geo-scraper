@@ -17,6 +17,7 @@ export interface PageMeta {
   twitterDescription: string | null;
   twitterImage: string | null;
   author: string | null;
+  authorBio: string | null;
   publishedDate: string | null;
   modifiedDate: string | null;
   keywords: string[];
@@ -47,6 +48,12 @@ export interface BreadcrumbItem {
   url: string;
 }
 
+export interface CitationData {
+  statistics: string[];
+  sources: string[];
+  quotes: string[];
+}
+
 export interface PageContent {
   headings: HeadingNode[];
   bodyText: string;
@@ -54,6 +61,7 @@ export interface PageContent {
   faqItems: FAQItem[];
   lists: string[][];
   tables: string[][][];
+  citations: CitationData;
 }
 
 export interface ExistingStructuredData {
@@ -153,8 +161,9 @@ export interface BusinessContext {
 
 export interface SearchQuery {
   query: string;
-  category: 'brand' | 'service' | 'product' | 'location' | 'industry' | 'competitor' | 'longtail';
+  category: 'brand' | 'service' | 'product' | 'location' | 'industry' | 'competitor' | 'longtail' | 'page';
   intent: string;
+  targetPage?: string;
 }
 
 export interface LLMResponse {
@@ -197,4 +206,5 @@ export interface CheckOptions {
   engines: string[];
   queryFile: string | null;
   outputDir: string;
+  region: string | null;
 }

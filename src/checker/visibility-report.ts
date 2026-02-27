@@ -2,7 +2,7 @@
  * Visibility report generator — HTML + JSON output.
  */
 
-import type { VisibilityResult, LLMResponse, EngineVisibility } from '../crawler/page-data.js';
+import type { VisibilityResult, LLMResponse } from '../crawler/page-data.js';
 
 export function generateVisibilityJson(result: VisibilityResult): string {
   return JSON.stringify(result, null, 2) + '\n';
@@ -149,6 +149,7 @@ export function generateVisibilityHtml(result: VisibilityResult): string {
   .badge-industry { background: rgba(216,180,254,0.1); color: #d8b4fe; }
   .badge-competitor { background: rgba(252,165,165,0.1); color: #fca5a5; }
   .badge-longtail { background: rgba(94,234,212,0.1); color: #5eead4; }
+  .badge-page { background: rgba(251,146,60,0.1); color: #fb923c; }
   .platform-tips { margin-bottom: 2rem; }
   .tip-card {
     background: var(--surface);
@@ -255,14 +256,21 @@ export function generateVisibilityHtml(result: VisibilityResult): string {
 
   <h2>Queries & Results</h2>
   <table>
-    <tr><th>Query</th><th>Category</th><th>Engine</th><th>Result</th><th>Context</th></tr>
-    ${result.responses.map((r) => `<tr>
+    <tr><th>Query</th><th>Category</th><th>Target Page</th><th>Engine</th><th>Result</th><th>Context</th></tr>
+    ${result.responses.map((r) => {
+      const sq = result.queries.find((q) => q.query === r.query);
+      const targetCell = sq?.targetPage
+        ? `<a href="${escHtml(sq.targetPage)}" target="_blank" style="color:var(--accent);text-decoration:none" title="${escHtml(sq.targetPage)}">${escHtml(truncateUrl(sq.targetPage))}</a>`
+        : '<span style="color:var(--text-muted)">Site-wide</span>';
+      return `<tr>
       <td>${escHtml(r.query)}</td>
-      <td>${categoryBadge(findQueryCategory(r.query, result))}</td>
+      <td>${categoryBadge(sq?.category || 'industry')}</td>
+      <td>${targetCell}</td>
       <td>${escHtml(engineDisplayName(r.engine))}</td>
       <td>${r.error ? `<span class="error">Error</span>` : mentionBadge(r)}</td>
       <td class="context-snippet">${escHtml(r.mentionContext?.slice(0, 150) || (r.error || '—'))}</td>
-    </tr>`).join('\n    ')}
+    </tr>`;
+    }).join('\n    ')}
   </table>
 
   ${renderPlatformTips(result)}
@@ -382,6 +390,16 @@ function engineDisplayName(engine: string): string {
   return names[engine] || engine;
 }
 
+function truncateUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    const path = parsed.pathname;
+    return path.length > 40 ? path.slice(0, 37) + '...' : path;
+  } catch {
+    return url.slice(0, 40);
+  }
+}
+
 function categoryBadge(category: string): string {
   return `<span class="badge badge-${category}">${category}</span>`;
 }
@@ -392,7 +410,3 @@ function mentionBadge(r: LLMResponse): string {
   return `<span class="absent">Absent</span>`;
 }
 
-function findQueryCategory(query: string, result: VisibilityResult): string {
-  const sq = result.queries.find((q) => q.query === query);
-  return sq?.category || 'industry';
-}
