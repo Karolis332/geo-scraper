@@ -753,13 +753,22 @@ function auditContentFreshness(crawlResult: SiteCrawlResult): AuditItem {
 
   const now = Date.now();
   const twelveMonthsMs = 365 * 24 * 60 * 60 * 1000;
+  const oneHourMs = 60 * 60 * 1000;
   let pagesWithDate = 0;
   let pagesRecent = 0;
   let pagesWithJsonLdDate = 0;
   const affectedUrls: string[] = [];
 
   for (const page of pages) {
-    const dateStr = page.meta.modifiedDate || page.meta.publishedDate || page.lastModified;
+    // Prefer HTML meta dates; only fall back to HTTP Last-Modified if it's
+    // not suspiciously close to crawl time (CMS dynamic generation).
+    let dateStr = page.meta.modifiedDate || page.meta.publishedDate;
+    if (!dateStr && page.lastModified) {
+      const lmTs = new Date(page.lastModified).getTime();
+      if (!isNaN(lmTs) && (now - lmTs) > oneHourMs) {
+        dateStr = page.lastModified;
+      }
+    }
     if (dateStr) {
       pagesWithDate++;
       const ts = new Date(dateStr).getTime();
