@@ -32,6 +32,8 @@ export function auditContentQuality(crawlResult: SiteCrawlResult): AuditItem[] {
   // Tier 3 checks
   items.push(auditContentQuotability(crawlResult));
   items.push(auditTopicClusterDetection(crawlResult));
+  // Semrush-aligned checks
+  items.push(auditContentReadability(crawlResult));
 
   return items;
 }
@@ -1042,5 +1044,76 @@ function auditTopicClusterDetection(crawlResult: SiteCrawlResult): AuditItem {
     recommendation: score < 60
       ? 'Build topic clusters: create comprehensive pillar pages (>500 words) and link supporting content to them. AI engines favor topically authoritative sites with clear content hierarchies.'
       : 'Topic cluster structure detected — good content hierarchy',
+  };
+}
+
+// ===== SEMRUSH-ALIGNED CHECKS =====
+
+/** Count syllables in a word using vowel-group heuristic */
+function countSyllables(word: string): number {
+  const w = word.toLowerCase().replace(/[^a-z]/g, '');
+  if (w.length <= 2) return 1;
+  // Remove silent trailing 'e'
+  const trimmed = w.endsWith('e') ? w.slice(0, -1) : w;
+  const vowelGroups = trimmed.match(/[aeiouy]+/g);
+  return Math.max(1, vowelGroups ? vowelGroups.length : 1);
+}
+
+/** Calculate Flesch Reading Ease: 206.835 - 1.015*(words/sentences) - 84.6*(syllables/words) */
+function fleschReadingEase(text: string): number {
+  const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
+  const words = text.split(/\s+/).filter(w => w.length > 0);
+  if (sentences.length === 0 || words.length === 0) return 0;
+
+  let totalSyllables = 0;
+  for (const word of words) {
+    totalSyllables += countSyllables(word);
+  }
+
+  const score = 206.835 - 1.015 * (words.length / sentences.length) - 84.6 * (totalSyllables / words.length);
+  return Math.max(0, Math.min(100, score));
+}
+
+function auditContentReadability(crawlResult: SiteCrawlResult): AuditItem {
+  const { pages } = crawlResult;
+  const contentPages = pages.filter(p => p.content.wordCount > 100);
+
+  if (contentPages.length === 0) {
+    return {
+      name: 'Content Readability', category: 'content_quality',
+      score: 0, maxScore: 100, status: 'not_applicable', severity: 'info',
+      details: 'No content pages found (>100 words)', recommendation: 'Add content pages to assess readability',
+    };
+  }
+
+  let totalFlesch = 0;
+  const affectedUrls: string[] = [];
+
+  for (const page of contentPages) {
+    const flesch = fleschReadingEase(page.content.bodyText);
+    totalFlesch += flesch;
+    if (flesch < 30 && affectedUrls.length < MAX_AFFECTED_URLS) {
+      affectedUrls.push(page.url);
+    }
+  }
+
+  const avgFlesch = totalFlesch / contentPages.length;
+  // Map Flesch score to audit score: 60+ is ideal, 30-60 is OK, <30 is poor
+  const score = Math.min(100, Math.round(avgFlesch * 100 / 60));
+  const status = avgFlesch >= 50 ? 'pass' as const : avgFlesch >= 30 ? 'partial' as const : 'fail' as const;
+
+  const difficultyLabel = avgFlesch >= 60 ? 'easy to read' : avgFlesch >= 50 ? 'fairly easy' : avgFlesch >= 30 ? 'difficult' : 'very difficult';
+  const difficultPages = contentPages.filter(p => fleschReadingEase(p.content.bodyText) < 30).length;
+
+  return {
+    name: 'Content Readability',
+    category: 'content_quality',
+    score, maxScore: 100, status,
+    severity: resolveSeverity('Content Readability', status),
+    details: `Avg Flesch Reading Ease: ${avgFlesch.toFixed(1)} (${difficultyLabel}). ${difficultPages} page(s) scored below 30 (very difficult).`,
+    recommendation: avgFlesch < 50
+      ? 'Simplify content to improve readability. Use shorter sentences, common words, and active voice. AI engines prefer content that is clear and concise.'
+      : 'Content readability is at an acceptable level',
+    ...(affectedUrls.length > 0 ? { affectedUrls } : {}),
   };
 }

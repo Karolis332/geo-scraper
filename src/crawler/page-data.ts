@@ -36,6 +36,20 @@ export interface RedirectHop {
   statusCode: number;
 }
 
+export interface ExternalLinkCheck {
+  url: string;
+  statusCode: number;       // 0 = network error
+  error?: string;
+  sourcePages: string[];
+}
+
+export interface InternalRedirectCheck {
+  url: string;
+  statusCode: number;       // 301/302/307/308
+  finalUrl: string;
+  sourcePages: string[];
+}
+
 export interface HeadingNode {
   level: number;
   text: string;
@@ -147,6 +161,8 @@ export interface SiteCrawlResult {
     errors: number;
     failedPages: FailedPage[];
   };
+  externalLinkChecks: ExternalLinkCheck[];
+  internalRedirectChecks: InternalRedirectCheck[];
 }
 
 export interface CrawlOptions {

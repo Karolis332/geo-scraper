@@ -216,6 +216,11 @@ const EFFORT_MAP: Record<string, 'easy' | 'medium' | 'hard'> = {
   'agents.json': 'medium',
   'Content Quotability Score': 'hard',
   'Topic Cluster Detection': 'hard',
+  // Semrush-aligned
+  'Broken External Links': 'medium',
+  'Temporary Redirects': 'easy',
+  'Missing H1 Heading': 'easy',
+  'Content Readability': 'hard',
 };
 
 const SEO_IMPACT_MAP: Record<string, 'foundational' | 'high' | 'medium' | 'low'> = {
@@ -270,6 +275,11 @@ const SEO_IMPACT_MAP: Record<string, 'foundational' | 'high' | 'medium' | 'low'>
   'agents.json': 'low',
   'Content Quotability Score': 'medium',
   'Topic Cluster Detection': 'medium',
+  // Semrush-aligned
+  'Broken External Links': 'medium',
+  'Temporary Redirects': 'medium',
+  'Missing H1 Heading': 'high',
+  'Content Readability': 'low',
 };
 
 const TIME_TO_IMPACT_MAP: Record<string, 'immediate' | '2-4 weeks' | '2-6 months'> = {
@@ -324,6 +334,11 @@ const TIME_TO_IMPACT_MAP: Record<string, 'immediate' | '2-4 weeks' | '2-6 months
   'agents.json': '2-4 weeks',
   'Content Quotability Score': '2-6 months',
   'Topic Cluster Detection': '2-6 months',
+  // Semrush-aligned
+  'Broken External Links': '2-4 weeks',
+  'Temporary Redirects': 'immediate',
+  'Missing H1 Heading': '2-4 weeks',
+  'Content Readability': '2-6 months',
 };
 
 export function calculatePriorityActions(audit: AuditResult): PriorityAction[] {

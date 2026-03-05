@@ -27,6 +27,10 @@ export function auditFoundationalSeo(crawlResult: SiteCrawlResult): AuditItem[] 
   items.push(auditCharsetDoctype(crawlResult));
   items.push(auditHtmlPageSize(crawlResult));
   items.push(auditCrawlDepth(crawlResult));
+  // Semrush-aligned checks
+  items.push(auditBrokenExternalLinks(crawlResult));
+  items.push(auditTemporaryRedirects(crawlResult));
+  items.push(auditMissingH1(crawlResult));
 
   return items;
 }
@@ -753,6 +757,129 @@ function auditCrawlDepth(crawlResult: SiteCrawlResult): AuditItem {
     recommendation: deepPages > 0
       ? 'Flatten site architecture so all important pages are within 3 clicks of the homepage. Deep pages are less likely to be crawled and indexed by AI engines.'
       : 'All pages are within 3 clicks of homepage — good!',
+    ...(affectedUrls.length > 0 ? { affectedUrls } : {}),
+  };
+}
+
+// ===== SEMRUSH-ALIGNED CHECKS =====
+
+function auditBrokenExternalLinks(crawlResult: SiteCrawlResult): AuditItem {
+  const checks = crawlResult.externalLinkChecks;
+  if (!checks || checks.length === 0) {
+    return {
+      name: 'Broken External Links', category: 'foundational_seo',
+      score: 0, maxScore: 100, status: 'not_applicable', severity: 'info',
+      details: 'No external links checked', recommendation: 'Crawl pages with external links to assess',
+    };
+  }
+
+  const broken = checks.filter(c => c.statusCode >= 400 || c.statusCode === 0);
+  const score = Math.round((1 - broken.length / checks.length) * 100);
+  const status = broken.length === 0 ? 'pass' as const : broken.length <= 3 ? 'partial' as const : 'fail' as const;
+
+  // Affected URLs = source pages that contain broken outbound links
+  const affectedUrls: string[] = [];
+  const seen = new Set<string>();
+  for (const b of broken) {
+    for (const src of b.sourcePages) {
+      if (!seen.has(src) && affectedUrls.length < MAX_AFFECTED_URLS) {
+        seen.add(src);
+        affectedUrls.push(src);
+      }
+    }
+  }
+
+  return {
+    name: 'Broken External Links',
+    category: 'foundational_seo',
+    score, maxScore: 100, status,
+    severity: resolveSeverity('Broken External Links', status),
+    details: broken.length === 0
+      ? `All ${checks.length} external links are reachable`
+      : `${broken.length}/${checks.length} external links are broken (4xx/5xx/unreachable)`,
+    recommendation: broken.length > 0
+      ? 'Fix or remove broken external links. Broken outbound links hurt user experience and reduce trust signals for search engines and AI crawlers.'
+      : 'All external links are working',
+    ...(affectedUrls.length > 0 ? { affectedUrls } : {}),
+  };
+}
+
+function auditTemporaryRedirects(crawlResult: SiteCrawlResult): AuditItem {
+  const checks = crawlResult.internalRedirectChecks;
+  if (!checks || checks.length === 0) {
+    return {
+      name: 'Temporary Redirects', category: 'foundational_seo',
+      score: 100, maxScore: 100, status: 'pass', severity: 'info',
+      details: 'No internal redirects detected', recommendation: 'No redirect issues found',
+    };
+  }
+
+  const temporary = checks.filter(c => c.statusCode === 302 || c.statusCode === 307);
+  const score = checks.length > 0
+    ? Math.round((1 - temporary.length / checks.length) * 100)
+    : 100;
+  const status = temporary.length === 0 ? 'pass' as const : temporary.length <= 5 ? 'partial' as const : 'fail' as const;
+
+  const affectedUrls: string[] = [];
+  const seen = new Set<string>();
+  for (const t of temporary) {
+    for (const src of t.sourcePages) {
+      if (!seen.has(src) && affectedUrls.length < MAX_AFFECTED_URLS) {
+        seen.add(src);
+        affectedUrls.push(src);
+      }
+    }
+  }
+
+  return {
+    name: 'Temporary Redirects',
+    category: 'foundational_seo',
+    score, maxScore: 100, status,
+    severity: resolveSeverity('Temporary Redirects', status),
+    details: temporary.length === 0
+      ? `${checks.length} redirect(s) detected, all permanent (301/308)`
+      : `${temporary.length}/${checks.length} redirects are temporary (302/307) — should be permanent`,
+    recommendation: temporary.length > 0
+      ? 'Convert temporary redirects (302/307) to permanent (301). Temporary redirects don\'t pass full link equity and confuse crawlers about the canonical URL.'
+      : 'All redirects are permanent — good!',
+    ...(affectedUrls.length > 0 ? { affectedUrls } : {}),
+  };
+}
+
+function auditMissingH1(crawlResult: SiteCrawlResult): AuditItem {
+  const { pages } = crawlResult;
+  if (pages.length === 0) {
+    return {
+      name: 'Missing H1 Heading', category: 'foundational_seo',
+      score: 0, maxScore: 100, status: 'not_applicable', severity: 'info',
+      details: 'No pages crawled', recommendation: 'Crawl pages to assess H1 headings',
+    };
+  }
+
+  let withH1 = 0;
+  const affectedUrls: string[] = [];
+
+  for (const page of pages) {
+    if (page.content.headings.some(h => h.level === 1)) {
+      withH1++;
+    } else {
+      if (affectedUrls.length < MAX_AFFECTED_URLS) affectedUrls.push(page.url);
+    }
+  }
+
+  const ratio = withH1 / pages.length;
+  const score = Math.round(ratio * 100);
+  const status = ratio === 1 ? 'pass' as const : ratio >= 0.9 ? 'partial' as const : 'fail' as const;
+
+  return {
+    name: 'Missing H1 Heading',
+    category: 'foundational_seo',
+    score, maxScore: 100, status,
+    severity: resolveSeverity('Missing H1 Heading', status),
+    details: `${withH1}/${pages.length} pages have an H1 heading`,
+    recommendation: ratio < 1
+      ? 'Add a single H1 heading to every page. H1 is the primary signal for page topic — missing it makes content harder for AI engines to categorize.'
+      : 'All pages have H1 headings — good!',
     ...(affectedUrls.length > 0 ? { affectedUrls } : {}),
   };
 }

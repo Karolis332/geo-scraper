@@ -54,6 +54,7 @@ export const SEVERITY_MAP: Record<string, AuditSeverity> = {
   'Compression': 'warning',
   'Content Quotability Score': 'notice',
   'Topic Cluster Detection': 'notice',
+  'Content Readability': 'notice',
   // AI Discoverability
   'Server-side Rendering': 'error',
   'Search Engine Indexing': 'error',
@@ -82,6 +83,9 @@ export const SEVERITY_MAP: Record<string, AuditSeverity> = {
   'Character Encoding & Doctype': 'error',
   'HTML Page Size': 'warning',
   'Crawl Depth': 'notice',
+  'Broken External Links': 'warning',
+  'Temporary Redirects': 'warning',
+  'Missing H1 Heading': 'warning',
   // Non-scored
   'security.txt': 'info',
   'tdmrep.json': 'info',

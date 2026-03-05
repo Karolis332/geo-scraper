@@ -49,6 +49,7 @@ export function createMockAuditResult(overrides: Partial<AuditResult> = {}): Aud
     createMockAuditItem({ name: 'Compression', category: 'content_quality', severity: 'warning' }),
     createMockAuditItem({ name: 'Content Quotability Score', category: 'content_quality', severity: 'notice' }),
     createMockAuditItem({ name: 'Topic Cluster Detection', category: 'content_quality', severity: 'notice' }),
+    createMockAuditItem({ name: 'Content Readability', category: 'content_quality', severity: 'notice' }),
     // AI Discoverability (10)
     createMockAuditItem({ name: 'Server-side Rendering', category: 'ai_discoverability', severity: 'error' }),
     createMockAuditItem({ name: 'Search Engine Indexing', category: 'ai_discoverability', severity: 'error' }),
@@ -77,6 +78,9 @@ export function createMockAuditResult(overrides: Partial<AuditResult> = {}): Aud
     createMockAuditItem({ name: 'Character Encoding & Doctype', category: 'foundational_seo', severity: 'error' }),
     createMockAuditItem({ name: 'HTML Page Size', category: 'foundational_seo', severity: 'warning' }),
     createMockAuditItem({ name: 'Crawl Depth', category: 'foundational_seo', severity: 'notice' }),
+    createMockAuditItem({ name: 'Broken External Links', category: 'foundational_seo', severity: 'warning' }),
+    createMockAuditItem({ name: 'Temporary Redirects', category: 'foundational_seo', severity: 'warning' }),
+    createMockAuditItem({ name: 'Missing H1 Heading', category: 'foundational_seo', severity: 'warning' }),
     // Non-scored (4)
     createMockAuditItem({ name: 'security.txt', category: 'non_scored', severity: 'info' }),
     createMockAuditItem({ name: 'tdmrep.json', category: 'non_scored', severity: 'info' }),
@@ -91,9 +95,9 @@ export function createMockAuditResult(overrides: Partial<AuditResult> = {}): Aud
     items: defaultItems,
     summary: {
       ai_infrastructure: { passed: 0, total: 10 },
-      content_quality: { passed: 0, total: 20 },
+      content_quality: { passed: 0, total: 21 },
       ai_discoverability: { passed: 0, total: 10 },
-      foundational_seo: { passed: 0, total: 16 },
+      foundational_seo: { passed: 0, total: 19 },
       non_scored: { passed: 0, total: 4 },
     },
     issueCounts: { errors: 0, warnings: 0, notices: 0 },
@@ -204,6 +208,8 @@ export function createMockCrawlResult(overrides: Partial<SiteCrawlResult> = {}):
     siteIdentity: createMockSiteIdentity(),
     existingGeoFiles: createMockGeoFiles(),
     crawlStats: { totalPages: 1, totalTime: 1000, errors: 0, failedPages: [] },
+    externalLinkChecks: [],
+    internalRedirectChecks: [],
     ...overrides,
   };
 }

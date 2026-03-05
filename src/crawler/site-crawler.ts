@@ -13,6 +13,7 @@ import { extractDomain, isSameDomain, normalizeUrl } from '../utils/url-utils.js
 import type {
   PageData, SiteCrawlResult, ExistingGeoFiles,
   SiteIdentity, CrawlOptions, FailedPage,
+  ExternalLinkCheck, InternalRedirectCheck,
 } from './page-data.js';
 
 // Crawlee bundles its own cheerio version which may differ from ours.
@@ -185,6 +186,14 @@ export async function crawlSite(
   log('Fetching existing GEO files from target site...', true);
   const existingGeoFiles = await fetchExistingGeoFiles(baseUrl);
 
+  // Check external links for broken URLs
+  log('Checking external links...');
+  const externalLinkChecks = await checkExternalLinks(deduplicatedPages, log);
+
+  // Detect temporary redirects on internal links
+  log('Detecting temporary redirects...');
+  const internalRedirectChecks = await detectInternalRedirects(deduplicatedPages, baseUrl, log);
+
   // Merge site identity from all pages (homepage wins)
   const homepageHtml = deduplicatedPages.find(p => {
     const path = new URL(p.url).pathname;
@@ -209,7 +218,120 @@ export async function crawlSite(
       errors: failedPages.length,
       failedPages,
     },
+    externalLinkChecks,
+    internalRedirectChecks,
   };
+}
+
+/** Run async tasks with limited concurrency */
+async function runWithConcurrency<T>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T) => Promise<void>,
+): Promise<void> {
+  let i = 0;
+  const next = async (): Promise<void> => {
+    while (i < items.length) {
+      const idx = i++;
+      await fn(items[idx]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => next()));
+}
+
+/** Check external links for broken URLs via HEAD requests */
+async function checkExternalLinks(
+  pages: PageData[],
+  log: (msg: string, verboseOnly?: boolean) => void,
+): Promise<ExternalLinkCheck[]> {
+  // Collect unique external URLs and map to source pages
+  const urlToSources = new Map<string, string[]>();
+  for (const page of pages) {
+    for (const extUrl of page.externalLinks) {
+      if (!extUrl.startsWith('http')) continue;
+      const sources = urlToSources.get(extUrl) || [];
+      sources.push(page.url);
+      urlToSources.set(extUrl, sources);
+    }
+  }
+
+  const uniqueUrls = Array.from(urlToSources.keys());
+  if (uniqueUrls.length === 0) return [];
+
+  log(`Checking ${uniqueUrls.length} external links...`);
+  const results: ExternalLinkCheck[] = [];
+  let checked = 0;
+
+  await runWithConcurrency(uniqueUrls, 10, async (url) => {
+    let statusCode = 0;
+    let error: string | undefined;
+    try {
+      const response = await fetch(url, {
+        method: 'HEAD',
+        headers: { 'User-Agent': 'geo-scraper/1.0' },
+        redirect: 'follow',
+        signal: AbortSignal.timeout(5000),
+      });
+      statusCode = response.status;
+    } catch (e) {
+      statusCode = 0;
+      error = e instanceof Error ? e.message : String(e);
+    }
+    results.push({ url, statusCode, error, sourcePages: urlToSources.get(url)! });
+    checked++;
+    if (checked % 20 === 0) log(`  External links: ${checked}/${uniqueUrls.length}`, true);
+  });
+
+  return results;
+}
+
+/** Detect temporary redirects on internal link targets via HEAD with redirect: manual */
+async function detectInternalRedirects(
+  pages: PageData[],
+  baseUrl: string,
+  log: (msg: string, verboseOnly?: boolean) => void,
+): Promise<InternalRedirectCheck[]> {
+  // Collect unique internal link targets and map to source pages
+  const urlToSources = new Map<string, string[]>();
+  for (const page of pages) {
+    for (const intUrl of page.internalLinks) {
+      if (!isSameDomain(intUrl, baseUrl)) continue;
+      const normalized = normalizeUrl(intUrl, baseUrl);
+      if (!normalized) continue;
+      const sources = urlToSources.get(normalized) || [];
+      sources.push(page.url);
+      urlToSources.set(normalized, sources);
+    }
+  }
+
+  const uniqueUrls = Array.from(urlToSources.keys());
+  if (uniqueUrls.length === 0) return [];
+
+  log(`Checking ${uniqueUrls.length} internal URLs for redirects...`, true);
+  const results: InternalRedirectCheck[] = [];
+  let checked = 0;
+
+  await runWithConcurrency(uniqueUrls, 10, async (url) => {
+    try {
+      const response = await fetch(url, {
+        method: 'HEAD',
+        headers: { 'User-Agent': 'geo-scraper/1.0' },
+        redirect: 'manual',
+        signal: AbortSignal.timeout(3000),
+      });
+      const status = response.status;
+      if (status === 301 || status === 302 || status === 307 || status === 308) {
+        const finalUrl = response.headers.get('location') || '';
+        results.push({ url, statusCode: status, finalUrl, sourcePages: urlToSources.get(url)! });
+      }
+    } catch {
+      // Skip network errors for redirect detection
+    }
+    checked++;
+    if (checked % 20 === 0) log(`  Internal redirects: ${checked}/${uniqueUrls.length}`, true);
+  });
+
+  return results;
 }
 
 /**
