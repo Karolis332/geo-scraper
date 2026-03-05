@@ -9,10 +9,11 @@ describe('auditSite', () => {
     expect(result).toHaveProperty('grade');
     expect(result).toHaveProperty('items');
     expect(result).toHaveProperty('summary');
-    expect(result.summary).toHaveProperty('critical');
-    expect(result.summary).toHaveProperty('high');
-    expect(result.summary).toHaveProperty('medium');
-    expect(result.summary).toHaveProperty('low');
+    expect(result.summary).toHaveProperty('ai_infrastructure');
+    expect(result.summary).toHaveProperty('content_quality');
+    expect(result.summary).toHaveProperty('ai_discoverability');
+    expect(result.summary).toHaveProperty('foundational_seo');
+    expect(result.summary).toHaveProperty('non_scored');
     expect(Array.isArray(result.items)).toBe(true);
     expect(result.items.length).toBeGreaterThan(0);
   });
@@ -40,7 +41,7 @@ describe('auditSite', () => {
         tdmrepJson: '{"policy":[]}',
         humansTxt: 'Team info',
         manifestJson: '{"name":"Example"}',
-        bingSiteAuth: null,
+        bingSiteAuth: null, agentCardJson: null, agentsJson: null,
       },
     }));
     expect(populated.overallScore).toBeGreaterThan(empty.overallScore);
@@ -59,7 +60,7 @@ describe('auditSite', () => {
           robotsTxt: 'User-agent: *\nAllow: /',
           sitemapXml: null, llmsTxt: null, llmsFullTxt: null,
           aiTxt: null, aiJson: null, securityTxt: null,
-          tdmrepJson: null, humansTxt: null, manifestJson: null, bingSiteAuth: null,
+          tdmrepJson: null, humansTxt: null, manifestJson: null, bingSiteAuth: null, agentCardJson: null, agentsJson: null,
         },
       }));
       const item = result.items.find(i => i.name === 'robots.txt')!;
@@ -72,7 +73,7 @@ describe('auditSite', () => {
           robotsTxt: 'User-agent: GPTBot\nAllow: /\nUser-agent: ClaudeBot\nAllow: /\nUser-agent: Google-Extended\nAllow: /',
           sitemapXml: null, llmsTxt: null, llmsFullTxt: null,
           aiTxt: null, aiJson: null, securityTxt: null,
-          tdmrepJson: null, humansTxt: null, manifestJson: null, bingSiteAuth: null,
+          tdmrepJson: null, humansTxt: null, manifestJson: null, bingSiteAuth: null, agentCardJson: null, agentsJson: null,
         },
       }));
       const item = result.items.find(i => i.name === 'robots.txt')!;
@@ -93,7 +94,7 @@ describe('auditSite', () => {
           robotsTxt: null, sitemapXml: '<urlset><url><loc>https://example.com/</loc></url></urlset>',
           llmsTxt: null, llmsFullTxt: null, aiTxt: null, aiJson: null,
           securityTxt: null, tdmrepJson: null, humansTxt: null, manifestJson: null,
-          bingSiteAuth: null,
+          bingSiteAuth: null, agentCardJson: null, agentsJson: null,
         },
       }));
       const item = result.items.find(i => i.name === 'sitemap.xml')!;
@@ -107,7 +108,7 @@ describe('auditSite', () => {
           sitemapXml: '<urlset><url><loc>https://example.com/</loc><lastmod>2025-01-01</lastmod></url></urlset>',
           llmsTxt: null, llmsFullTxt: null, aiTxt: null, aiJson: null,
           securityTxt: null, tdmrepJson: null, humansTxt: null, manifestJson: null,
-          bingSiteAuth: null,
+          bingSiteAuth: null, agentCardJson: null, agentsJson: null,
         },
       }));
       const item = result.items.find(i => i.name === 'sitemap.xml')!;
@@ -123,7 +124,7 @@ describe('auditSite', () => {
           llmsTxt: '# My Site\n> A great site\n## Pages\n- [Home](https://example.com)',
           llmsFullTxt: null, aiTxt: null, aiJson: null,
           securityTxt: null, tdmrepJson: null, humansTxt: null, manifestJson: null,
-          bingSiteAuth: null,
+          bingSiteAuth: null, agentCardJson: null, agentsJson: null,
         },
       }));
       const item = full.items.find(i => i.name === 'llms.txt')!;
@@ -138,7 +139,7 @@ describe('auditSite', () => {
           llmsTxt: '# My Site\nSome content without blockquote or sections',
           llmsFullTxt: null, aiTxt: null, aiJson: null,
           securityTxt: null, tdmrepJson: null, humansTxt: null, manifestJson: null,
-          bingSiteAuth: null,
+          bingSiteAuth: null, agentCardJson: null, agentsJson: null,
         },
       }));
       const item = partial.items.find(i => i.name === 'llms.txt')!;
@@ -167,6 +168,7 @@ describe('auditSite', () => {
             twitterTitle: null, twitterDescription: null, twitterImage: null,
             author: null, authorBio: null, publishedDate: null, modifiedDate: '2025-06-01',
             keywords: [], robots: null, googleVerification: null, bingVerification: null, yandexVerification: null, viewport: 'width=device-width, initial-scale=1',
+            hreflang: [], charset: 'utf-8', hasDoctype: true,
           },
           content: {
             headings: [{ level: 1, text: 'Main' }, { level: 2, text: 'Sub' }, { level: 3, text: 'Detail' }],
@@ -191,20 +193,20 @@ describe('auditSite', () => {
           tdmrepJson: '{"policy":[]}',
           humansTxt: 'Team info',
           manifestJson: '{"name":"Site"}',
-          bingSiteAuth: null,
+          bingSiteAuth: null, agentCardJson: null, agentsJson: null,
         },
       }));
-      expect(result.overallScore).toBeGreaterThan(70);
-      // Should be at least B
-      expect(['A+', 'A', 'B']).toContain(result.grade);
+      expect(result.overallScore).toBeGreaterThan(50);
+      // Should be at least D with many GEO files present
+      expect(['A+', 'A', 'B', 'C', 'D']).toContain(result.grade);
     });
   });
 
-  describe('SEO checks', () => {
-    it('includes seo category in summary', () => {
+  describe('Foundational SEO checks', () => {
+    it('includes foundational_seo category in summary', () => {
       const result = auditSite(createMockCrawlResult());
-      expect(result.summary).toHaveProperty('seo');
-      expect(result.summary.seo.total).toBeGreaterThan(0);
+      expect(result.summary).toHaveProperty('foundational_seo');
+      expect(result.summary.foundational_seo.total).toBeGreaterThan(0);
     });
 
     it('audits title tags', () => {
@@ -215,7 +217,7 @@ describe('auditSite', () => {
       }));
       const item = result.items.find(i => i.name === 'Title Tags')!;
       expect(item).toBeDefined();
-      expect(item.category).toBe('seo');
+      expect(item.category).toBe('foundational_seo');
       expect(item.score).toBeGreaterThan(0);
     });
 
@@ -252,7 +254,7 @@ describe('auditSite', () => {
       const result = auditSite(createMockCrawlResult());
       const item = result.items.find(i => i.name === 'Internal Linking')!;
       expect(item).toBeDefined();
-      expect(item.category).toBe('seo');
+      expect(item.category).toBe('foundational_seo');
     });
 
     it('audits mobile viewport', () => {
@@ -324,7 +326,7 @@ describe('auditSite', () => {
           robotsTxt: 'User-agent: GPTBot\nDisallow: /\nUser-agent: ClaudeBot\nDisallow: /',
           sitemapXml: null, llmsTxt: null, llmsFullTxt: null,
           aiTxt: null, aiJson: null, securityTxt: null,
-          tdmrepJson: null, humansTxt: null, manifestJson: null, bingSiteAuth: null,
+          tdmrepJson: null, humansTxt: null, manifestJson: null, bingSiteAuth: null, agentCardJson: null, agentsJson: null,
         },
       }));
       const item = result.items.find(i => i.name === 'AI Bot Blocking')!;

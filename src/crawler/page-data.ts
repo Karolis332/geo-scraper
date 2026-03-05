@@ -26,6 +26,14 @@ export interface PageMeta {
   bingVerification: string | null;
   yandexVerification: string | null;
   viewport: string | null;
+  hreflang: { lang: string; url: string }[];
+  charset: string | null;
+  hasDoctype: boolean;
+}
+
+export interface RedirectHop {
+  url: string;
+  statusCode: number;
 }
 
 export interface HeadingNode {
@@ -98,6 +106,10 @@ export interface PageData {
   images: { src: string; alt: string }[];
   lastModified: string | null;
   responseHeaders: Record<string, string>;
+  htmlSizeBytes: number;
+  responseTimeMs: number;
+  redirectChain: RedirectHop[];
+  crawlDepth: number;
 }
 
 export interface ExistingGeoFiles {
@@ -112,6 +124,15 @@ export interface ExistingGeoFiles {
   humansTxt: string | null;
   manifestJson: string | null;
   bingSiteAuth: string | null;
+  agentCardJson: string | null;
+  agentsJson: string | null;
+}
+
+export interface FailedPage {
+  url: string;
+  statusCode?: number;
+  error: string;
+  retries: number;
 }
 
 export interface SiteCrawlResult {
@@ -124,6 +145,7 @@ export interface SiteCrawlResult {
     totalPages: number;
     totalTime: number;
     errors: number;
+    failedPages: FailedPage[];
   };
 }
 
@@ -145,6 +167,8 @@ export interface CLIOptions extends CrawlOptions, GeneratorOptions {
   auditOnly: boolean;
 }
 
+export type AuditSeverity = 'error' | 'warning' | 'notice' | 'info';
+
 // ===== LLM Visibility Checker Types =====
 
 export interface BusinessContext {
@@ -161,8 +185,9 @@ export interface BusinessContext {
 
 export interface SearchQuery {
   query: string;
-  category: 'brand' | 'service' | 'product' | 'location' | 'industry' | 'competitor' | 'longtail' | 'page';
+  category: 'brand' | 'generic_faq' | 'purchase_intent' | 'page_specific';
   intent: string;
+  language?: string;
   targetPage?: string;
 }
 

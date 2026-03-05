@@ -190,6 +190,25 @@ async function runScan(rawUrl: string, opts: Record<string, unknown>): Promise<v
     (crawlResult.crawlStats.errors > 0 ? chalk.yellow(` (${crawlResult.crawlStats.errors} errors)`) : '')
   );
 
+  // Warn when crawl returns 0 pages
+  if (crawlResult.crawlStats.totalPages === 0) {
+    const sitemapUrls = crawlResult.existingGeoFiles.sitemapXml
+      ? (crawlResult.existingGeoFiles.sitemapXml.match(/<loc>/g) || []).length
+      : 0;
+
+    if (sitemapUrls > 0) {
+      console.log(chalk.yellow(`\n  ⚠ Found ${sitemapUrls} URLs in sitemap but crawled 0 pages. The site may be blocking automated requests.`));
+    } else if (crawlResult.crawlStats.errors > 0) {
+      console.log(chalk.yellow('\n  ⚠ No pages could be fetched. Results may be incomplete. Check site accessibility.'));
+      for (const fp of crawlResult.crawlStats.failedPages.slice(0, 3)) {
+        console.log(chalk.dim(`    ${fp.url} — ${fp.error}`));
+      }
+    } else {
+      console.log(chalk.yellow('\n  ⚠ No pages found to crawl.'));
+    }
+    console.log('');
+  }
+
   // Step 2: Audit
   const auditSpinner = ora({ text: 'Auditing GEO compliance...', color: 'cyan' }).start();
   const audit = auditSite(crawlResult);
@@ -297,22 +316,50 @@ async function runScan(rawUrl: string, opts: Record<string, unknown>): Promise<v
 
 function printAuditSummary(audit: import('./analyzer/geo-auditor.js').AuditResult): void {
   console.log(chalk.bold('  Audit Summary:'));
+
+  // Issue counts header
+  const { errors, warnings, notices } = audit.issueCounts;
+  const countParts: string[] = [];
+  if (errors > 0) countParts.push(chalk.red(`${errors} errors`));
+  if (warnings > 0) countParts.push(chalk.yellow(`${warnings} warnings`));
+  if (notices > 0) countParts.push(chalk.blue(`${notices} notices`));
+  if (countParts.length > 0) {
+    console.log(`  ${countParts.join(chalk.dim(' · '))}`);
+  }
   console.log('');
 
   for (const item of audit.items) {
-    const icon = item.status === 'pass'
-      ? chalk.green('  ✓')
-      : item.status === 'partial'
-        ? chalk.yellow('  ~')
-        : chalk.red('  ✗');
-    const score = `${String(item.score).padStart(3)}/${item.maxScore}`;
+    // Severity-based icon
+    let icon: string;
+    if (item.status === 'pass') {
+      icon = chalk.green('  ✓');
+    } else if (item.status === 'not_applicable') {
+      icon = chalk.gray('  —');
+    } else if (item.severity === 'error') {
+      icon = chalk.red('  ●');
+    } else if (item.severity === 'warning') {
+      icon = chalk.yellow('  ▲');
+    } else if (item.severity === 'notice') {
+      icon = chalk.blue('  ℹ');
+    } else {
+      icon = chalk.gray('  ○');
+    }
+
+    const score = item.status === 'not_applicable'
+      ? '  N/A'
+      : `${String(item.score).padStart(3)}/${item.maxScore}`;
     const category = item.category.padEnd(8);
-    console.log(`  ${icon} ${chalk.dim(`[${category}]`)} ${item.name.padEnd(30)} ${score}  ${chalk.dim(item.details)}`);
+    console.log(`  ${icon} ${chalk.dim(`[${category}]`)} ${item.name.padEnd(38)} ${score}  ${chalk.dim(item.details)}`);
   }
 
   console.log('');
   const gradeColor = audit.overallScore >= 70 ? 'green' : audit.overallScore >= 40 ? 'yellow' : 'red';
   console.log(`  ${chalk.bold('Overall:')} ${chalk[gradeColor].bold(`${audit.overallScore}/100`)} (Grade: ${chalk[gradeColor].bold(audit.grade)})`);
+
+  // AI Search Health sub-score
+  const aiHealth = audit.subScores.aiSearchHealth;
+  const aiColor = aiHealth >= 70 ? 'green' : aiHealth >= 40 ? 'yellow' : 'red';
+  console.log(`  ${chalk.bold('AI Search Health:')} ${chalk[aiColor].bold(`${aiHealth}/100`)}`);
 }
 
 // ============================================================================
@@ -458,7 +505,7 @@ async function runCheck(rawUrl: string, opts: Record<string, unknown>): Promise<
       .filter((line) => line.length > 0 && !line.startsWith('#'))
       .map((query) => ({
         query,
-        category: 'industry' as const,
+        category: 'generic_faq' as const,
         intent: 'Custom query from file',
       }));
   } else {

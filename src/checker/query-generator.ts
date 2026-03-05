@@ -56,17 +56,31 @@ export async function generateQueries(
   return generateTemplateQueries(context, count);
 }
 
+function getLangName(code: string): string {
+  const map: Record<string, string> = { lt: 'Lithuanian', en: 'English', de: 'German', fr: 'French', es: 'Spanish', pl: 'Polish', lv: 'Latvian', et: 'Estonian' };
+  return map[code] || code;
+}
+
 async function generateQueriesViaLLM(
   context: BusinessContext,
   count: number,
   apiKey: string,
   provider: 'openai' | 'anthropic' | 'gemini',
 ): Promise<SearchQuery[]> {
-  const prompt = `Given this business profile, generate exactly ${count} search queries that simulate how real users talk to AI assistants (ChatGPT, Perplexity, Google AI). The queries should be in ${context.language === 'lt' ? 'Lithuanian' : context.language === 'en' ? 'English' : context.language || 'the same language as the business website'}.
+  const langName = getLangName(context.language);
+  const langCode = context.language || 'en';
 
-Business Profile:
-- Name: ${context.name}
-- Domain: ${context.domain}
+  const prompt = `You are a GEO (Generative Engine Optimization) visibility analyst.
+Generate search queries that a real user would type into an AI assistant (ChatGPT, Perplexity, Claude) when looking for products/services in this industry.
+
+CRITICAL RULES:
+- NEVER mention the brand name "${context.name}" in generic_faq or purchase_intent queries
+- These must be pure industry queries that the site SHOULD appear for
+- Generate queries in both ${langName} and English
+- Split: ~60% ${langName}, ~40% English
+- Focus on informational and transactional intent
+
+Business context:
 - Industry: ${context.industry}
 - Location: ${context.location || 'unknown'}
 - Services: ${context.services.join(', ') || 'unknown'}
@@ -74,23 +88,14 @@ Business Profile:
 - Keywords: ${context.keywords.join(', ') || 'unknown'}
 - Description: ${context.description}
 
-IMPORTANT: AI assistants decompose user prompts into long-tail sub-queries. Generate complex, conversational queries of 7+ words that match how users actually talk to AI. AI overviews appear far more on longer, niche queries.
+Generate ${count} queries as JSON array:
+- 2 brand queries (these CAN mention "${context.name}")
+- 8 generic_faq queries (industry FAQ style, split between ${langName} and English)
+- 6 purchase_intent queries (buying/comparison, split between ${langName} and English)
+- 4 page_specific queries (based on actual content topics, no brand mention)
 
-Include a mix of:
-- brand: searching for the business by name
-- service: searching for what they offer
-- product: product-specific queries
-- location: location-based queries
-- industry: industry/competitor queries
-- longtail: complex scenario-based queries (at least 30% of total)
-
-Examples of good longtail queries:
-- "Plan me a 5-day trip to Japan in November" (not "Japan travel")
-- "What's the best CRM for a 10-person sales team under $50/month" (not "best CRM")
-- "Compare organic vs paid marketing for a new SaaS startup" (not "marketing strategies")
-
-Return ONLY a JSON array with objects like:
-[{"query": "...", "category": "brand|service|product|location|industry|competitor|longtail", "intent": "..."}]`;
+Return ONLY a JSON array:
+[{"query": "...", "category": "brand|generic_faq|purchase_intent|page_specific", "intent": "...", "language": "en|${langCode}"}]`;
 
   let responseText: string;
 
@@ -127,14 +132,16 @@ Return ONLY a JSON array with objects like:
   // Parse the JSON response
   const parsed = JSON.parse(extractJsonArray(responseText));
   const queries: SearchQuery[] = [];
+  const validCategories = new Set(['brand', 'generic_faq', 'purchase_intent', 'page_specific']);
 
   if (Array.isArray(parsed)) {
     for (const item of parsed) {
-      if (item.query && item.category) {
+      if (item.query && item.category && validCategories.has(item.category)) {
         queries.push({
           query: item.query,
           category: item.category,
           intent: item.intent || '',
+          language: item.language || 'en',
         });
       }
     }
@@ -166,86 +173,141 @@ function extractJsonArray(text: string): string {
 function generateTemplateQueries(context: BusinessContext, count: number): SearchQuery[] {
   const queries: SearchQuery[] = [];
   const loc = context.location || '';
+  const lang = context.language || 'en';
+  const service0 = context.services[0] || context.industry;
+  const service1 = context.services[1] || context.keywords[0] || context.industry;
 
-  // Brand queries
+  // Brand queries (2) — CAN mention brand name
   queries.push({
     query: `what does ${context.name} do and are they reputable`,
     category: 'brand',
     intent: 'Brand reputation query',
+    language: 'en',
   });
-  if (context.domain !== context.name.toLowerCase()) {
-    queries.push({
-      query: `${context.name} ${context.industry} reviews and pricing`,
-      category: 'brand',
-      intent: 'Brand + industry + evaluation search',
-    });
-  }
-
-  // Service queries — more specific, conversational
-  for (const service of context.services.slice(0, 3)) {
-    queries.push({
-      query: loc
-        ? `best ${service} provider in ${loc} for a small business`
-        : `what is the best ${service} provider for a small business`,
-      category: 'service',
-      intent: `Service search: ${service}`,
-    });
-  }
-
-  // Product queries — comparative
-  for (const product of context.products.slice(0, 2)) {
-    queries.push({
-      query: `${product} vs competitors which one should I choose`,
-      category: 'product',
-      intent: `Product comparison: ${product}`,
-    });
-  }
-
-  // Location queries — scenario-based
-  if (loc) {
-    queries.push({
-      query: `recommend a good ${context.industry} company in ${loc} with experience`,
-      category: 'location',
-      intent: 'Location-based recommendation query',
-    });
-  }
-
-  // Industry queries — longer, more specific
   queries.push({
-    query: `what are the top ${context.industry} companies${loc ? ' in ' + loc : ''} and how do they compare`,
-    category: 'industry',
-    intent: 'Competitive landscape query',
+    query: `${context.name} ${context.industry} reviews and pricing`,
+    category: 'brand',
+    intent: 'Brand evaluation search',
+    language: 'en',
   });
 
-  // Long-tail scenario queries
-  const service0 = context.services[0] || context.industry;
-  const service1 = context.services[1] || context.keywords[0] || context.industry;
-
+  // Generic FAQ queries (8) — NO brand mention, industry-level
   queries.push({
-    query: `I need help with ${service0}${loc ? ' in ' + loc : ''} what should I look for when choosing a provider`,
-    category: 'longtail',
-    intent: 'Decision-making scenario query',
+    query: `how to choose a good ${service0} provider${loc ? ' in ' + loc : ''}`,
+    category: 'generic_faq',
+    intent: 'Industry FAQ: choosing provider',
+    language: 'en',
   });
-
   queries.push({
-    query: `compare ${context.name} with other ${context.industry} options for ${service1}`,
-    category: 'longtail',
-    intent: 'Comparative scenario query',
+    query: `what should I look for when buying ${service1}`,
+    category: 'generic_faq',
+    intent: 'Industry FAQ: buying guide',
+    language: 'en',
+  });
+  queries.push({
+    query: `what is the difference between cheap and premium ${context.industry}`,
+    category: 'generic_faq',
+    intent: 'Industry FAQ: quality comparison',
+    language: 'en',
+  });
+  queries.push({
+    query: `how much does ${service0} typically cost${loc ? ' in ' + loc : ''}`,
+    category: 'generic_faq',
+    intent: 'Industry FAQ: pricing',
+    language: 'en',
+  });
+  queries.push({
+    query: `what are the benefits of professional ${service0}`,
+    category: 'generic_faq',
+    intent: 'Industry FAQ: benefits',
+    language: lang,
+  });
+  queries.push({
+    query: `common mistakes when choosing ${context.industry} services`,
+    category: 'generic_faq',
+    intent: 'Industry FAQ: mistakes to avoid',
+    language: lang,
+  });
+  queries.push({
+    query: `${context.industry} trends and innovations this year`,
+    category: 'generic_faq',
+    intent: 'Industry FAQ: trends',
+    language: lang,
+  });
+  queries.push({
+    query: `how long does ${service0} process usually take`,
+    category: 'generic_faq',
+    intent: 'Industry FAQ: timeline',
+    language: lang,
   });
 
-  if (loc) {
-    queries.push({
-      query: `what is the best way to find reliable ${service0} in ${loc} for my specific needs`,
-      category: 'longtail',
-      intent: 'Complex local scenario query',
-    });
-  }
+  // Purchase intent queries (6) — NO brand mention, buying/comparison
+  queries.push({
+    query: `best ${context.industry} companies${loc ? ' in ' + loc : ''} comparison`,
+    category: 'purchase_intent',
+    intent: 'Purchase comparison query',
+    language: 'en',
+  });
+  queries.push({
+    query: `top rated ${service0} providers near me`,
+    category: 'purchase_intent',
+    intent: 'Purchase: local search',
+    language: 'en',
+  });
+  queries.push({
+    query: `${service0} price comparison${loc ? ' ' + loc : ''}`,
+    category: 'purchase_intent',
+    intent: 'Purchase: price comparison',
+    language: lang,
+  });
+  queries.push({
+    query: `recommend a reliable ${context.industry} company for ${service1}`,
+    category: 'purchase_intent',
+    intent: 'Purchase: recommendation',
+    language: lang,
+  });
+  queries.push({
+    query: `where to order custom ${service0}${loc ? ' in ' + loc : ''}`,
+    category: 'purchase_intent',
+    intent: 'Purchase: where to buy',
+    language: lang,
+  });
+  queries.push({
+    query: `${service0} vs ${service1} which is better for my needs`,
+    category: 'purchase_intent',
+    intent: 'Purchase: service comparison',
+    language: 'en',
+  });
 
+  // Page-specific queries (4) — based on content topics, no brand
   queries.push({
     query: `explain the pros and cons of different ${context.industry} approaches for someone just getting started`,
-    category: 'longtail',
-    intent: 'Educational long-tail query',
+    category: 'page_specific',
+    intent: 'Educational content query',
+    language: 'en',
   });
+  queries.push({
+    query: `step by step guide to ${service0}`,
+    category: 'page_specific',
+    intent: 'How-to content query',
+    language: 'en',
+  });
+  if (context.keywords[0]) {
+    queries.push({
+      query: `${context.keywords[0]} complete guide and tips`,
+      category: 'page_specific',
+      intent: 'Keyword content query',
+      language: lang,
+    });
+  }
+  if (context.keywords[1]) {
+    queries.push({
+      query: `everything you need to know about ${context.keywords[1]}`,
+      category: 'page_specific',
+      intent: 'Keyword content query',
+      language: lang,
+    });
+  }
 
   return queries.slice(0, count);
 }
@@ -325,7 +387,7 @@ ${pageList}
 Generate up to ${maxQueries} queries total (1-2 per page). Each query should be specific to that page's content — not generic site-wide queries.
 
 Return ONLY a JSON array:
-[{"query": "...", "category": "page", "intent": "...", "targetPage": "<exact page URL>"}]`;
+[{"query": "...", "category": "page_specific", "intent": "...", "language": "en|${context.language}", "targetPage": "<exact page URL>"}]`;
 
   let responseText: string;
 
@@ -367,8 +429,9 @@ Return ONLY a JSON array:
       if (item.query && item.targetPage) {
         queries.push({
           query: item.query,
-          category: 'page',
+          category: 'page_specific',
           intent: item.intent || '',
+          language: item.language || 'en',
           targetPage: item.targetPage,
         });
       }
@@ -418,7 +481,7 @@ function generatePageTemplateQueries(pages: PageContext[], context: BusinessCont
 
     queries.push({
       query,
-      category: 'page',
+      category: 'page_specific',
       intent: `Page-specific: ${page.section} — ${title}`,
       targetPage: page.url,
     });

@@ -4,10 +4,11 @@ import type { SiteCrawlResult, PageData, ExistingGeoFiles, SiteIdentity } from '
 export function createMockAuditItem(overrides: Partial<AuditItem> = {}): AuditItem {
   return {
     name: 'Test Item',
-    category: 'medium',
+    category: 'content_quality',
     score: 0,
     maxScore: 100,
     status: 'fail',
+    severity: 'warning',
     details: 'Test details',
     recommendation: 'Test recommendation',
     ...overrides,
@@ -16,36 +17,71 @@ export function createMockAuditItem(overrides: Partial<AuditItem> = {}): AuditIt
 
 export function createMockAuditResult(overrides: Partial<AuditResult> = {}): AuditResult {
   const defaultItems: AuditItem[] = [
-    // Critical (6)
-    createMockAuditItem({ name: 'robots.txt', category: 'critical' }),
-    createMockAuditItem({ name: 'sitemap.xml', category: 'critical' }),
-    createMockAuditItem({ name: 'llms.txt', category: 'critical' }),
-    createMockAuditItem({ name: 'Structured Data (JSON-LD)', category: 'critical' }),
-    createMockAuditItem({ name: 'Server-side Rendering', category: 'critical' }),
-    createMockAuditItem({ name: 'AI Bot Blocking', category: 'critical' }),
-    // High (6)
-    createMockAuditItem({ name: 'llms-full.txt', category: 'high' }),
-    createMockAuditItem({ name: 'AI Policy (ai.txt / ai.json)', category: 'high' }),
-    createMockAuditItem({ name: 'Meta Descriptions', category: 'high' }),
-    createMockAuditItem({ name: 'Heading Hierarchy', category: 'high' }),
-    createMockAuditItem({ name: 'Content Freshness', category: 'high' }),
-    createMockAuditItem({ name: 'Content Structure & Depth', category: 'high' }),
-    // Medium (4)
-    createMockAuditItem({ name: 'security.txt', category: 'medium' }),
-    createMockAuditItem({ name: 'tdmrep.json', category: 'medium' }),
-    createMockAuditItem({ name: 'Open Graph Tags', category: 'medium' }),
-    createMockAuditItem({ name: 'AI Content Directives', category: 'medium' }),
-    createMockAuditItem({ name: 'manifest.json', category: 'medium' }),
-    // Low (2)
-    createMockAuditItem({ name: 'humans.txt', category: 'low' }),
-    createMockAuditItem({ name: 'FAQ Content', category: 'low' }),
-    // SEO (6)
-    createMockAuditItem({ name: 'Title Tags', category: 'seo' as AuditItem['category'] }),
-    createMockAuditItem({ name: 'Image Alt Text', category: 'seo' as AuditItem['category'] }),
-    createMockAuditItem({ name: 'Internal Linking', category: 'seo' as AuditItem['category'] }),
-    createMockAuditItem({ name: 'Mobile Viewport', category: 'seo' as AuditItem['category'] }),
-    createMockAuditItem({ name: 'HTTPS Enforcement', category: 'seo' as AuditItem['category'] }),
-    createMockAuditItem({ name: 'Broken Pages', category: 'seo' as AuditItem['category'] }),
+    // AI Infrastructure (10)
+    createMockAuditItem({ name: 'robots.txt', category: 'ai_infrastructure', severity: 'error' }),
+    createMockAuditItem({ name: 'sitemap.xml', category: 'ai_infrastructure', severity: 'error' }),
+    createMockAuditItem({ name: 'llms.txt', category: 'ai_infrastructure', severity: 'warning' }),
+    createMockAuditItem({ name: 'llms-full.txt', category: 'ai_infrastructure', severity: 'warning' }),
+    createMockAuditItem({ name: 'AI Policy (ai.txt / ai.json)', category: 'ai_infrastructure', severity: 'warning' }),
+    createMockAuditItem({ name: 'AI Bot Blocking', category: 'ai_infrastructure', severity: 'error' }),
+    createMockAuditItem({ name: 'AI Content Directives', category: 'ai_infrastructure', severity: 'notice' }),
+    createMockAuditItem({ name: 'Training vs Retrieval Bot Strategy', category: 'ai_infrastructure', severity: 'notice' }),
+    createMockAuditItem({ name: 'agent-card.json', category: 'ai_infrastructure', severity: 'notice' }),
+    createMockAuditItem({ name: 'agents.json', category: 'ai_infrastructure', severity: 'notice' }),
+    // Content Quality (20)
+    createMockAuditItem({ name: 'Structured Data (JSON-LD)', category: 'content_quality', severity: 'warning' }),
+    createMockAuditItem({ name: 'FAQ Content', category: 'content_quality', severity: 'notice' }),
+    createMockAuditItem({ name: 'Content Structure & Depth', category: 'content_quality', severity: 'warning' }),
+    createMockAuditItem({ name: 'Heading Hierarchy', category: 'content_quality', severity: 'warning' }),
+    createMockAuditItem({ name: 'Meta Descriptions', category: 'content_quality', severity: 'warning' }),
+    createMockAuditItem({ name: 'Content Freshness', category: 'content_quality', severity: 'notice' }),
+    createMockAuditItem({ name: 'Schema Markup Diversity', category: 'content_quality', severity: 'notice' }),
+    createMockAuditItem({ name: 'Featured Snippet Readiness', category: 'content_quality', severity: 'notice' }),
+    createMockAuditItem({ name: 'Answer Format Diversity', category: 'content_quality', severity: 'notice' }),
+    createMockAuditItem({ name: 'Voice Search Optimization', category: 'content_quality', severity: 'notice' }),
+    createMockAuditItem({ name: 'Duplicate Titles', category: 'content_quality', severity: 'warning' }),
+    createMockAuditItem({ name: 'Duplicate Meta Descriptions', category: 'content_quality', severity: 'warning' }),
+    createMockAuditItem({ name: 'Content Too Long for AI', category: 'content_quality', severity: 'notice' }),
+    createMockAuditItem({ name: 'Paragraph Length Optimization', category: 'content_quality', severity: 'notice' }),
+    createMockAuditItem({ name: 'Answer-First Content Structure', category: 'content_quality', severity: 'notice' }),
+    createMockAuditItem({ name: 'Organization Schema Completeness', category: 'content_quality', severity: 'warning' }),
+    createMockAuditItem({ name: 'Security Headers', category: 'content_quality', severity: 'notice' }),
+    createMockAuditItem({ name: 'Compression', category: 'content_quality', severity: 'warning' }),
+    createMockAuditItem({ name: 'Content Quotability Score', category: 'content_quality', severity: 'notice' }),
+    createMockAuditItem({ name: 'Topic Cluster Detection', category: 'content_quality', severity: 'notice' }),
+    // AI Discoverability (10)
+    createMockAuditItem({ name: 'Server-side Rendering', category: 'ai_discoverability', severity: 'error' }),
+    createMockAuditItem({ name: 'Search Engine Indexing', category: 'ai_discoverability', severity: 'error' }),
+    createMockAuditItem({ name: 'Open Graph Tags', category: 'ai_discoverability', severity: 'notice' }),
+    createMockAuditItem({ name: 'Author & Expertise Signals', category: 'ai_discoverability', severity: 'notice' }),
+    createMockAuditItem({ name: 'Trust Signals', category: 'ai_discoverability', severity: 'notice' }),
+    createMockAuditItem({ name: 'Social Proof & Authority', category: 'ai_discoverability', severity: 'notice' }),
+    createMockAuditItem({ name: 'Citation Quality', category: 'ai_discoverability', severity: 'notice' }),
+    createMockAuditItem({ name: 'Twitter Card Tags', category: 'ai_discoverability', severity: 'notice' }),
+    createMockAuditItem({ name: 'Breadcrumb Schema', category: 'ai_discoverability', severity: 'notice' }),
+    createMockAuditItem({ name: 'hreflang Tags', category: 'ai_discoverability', severity: 'notice' }),
+    // Foundational SEO (16)
+    createMockAuditItem({ name: 'Title Tags', category: 'foundational_seo', severity: 'warning' }),
+    createMockAuditItem({ name: 'Image Alt Text', category: 'foundational_seo', severity: 'warning' }),
+    createMockAuditItem({ name: 'Internal Linking', category: 'foundational_seo', severity: 'warning' }),
+    createMockAuditItem({ name: 'Mobile Viewport', category: 'foundational_seo', severity: 'error' }),
+    createMockAuditItem({ name: 'HTTPS Enforcement', category: 'foundational_seo', severity: 'error' }),
+    createMockAuditItem({ name: 'Broken Pages', category: 'foundational_seo', severity: 'error' }),
+    createMockAuditItem({ name: 'Nofollow on Internal Links', category: 'foundational_seo', severity: 'warning' }),
+    createMockAuditItem({ name: 'URL Structure Quality', category: 'foundational_seo', severity: 'warning' }),
+    createMockAuditItem({ name: 'Canonical Link Issues', category: 'foundational_seo', severity: 'error' }),
+    createMockAuditItem({ name: 'Semantic HTML Usage', category: 'foundational_seo', severity: 'notice' }),
+    createMockAuditItem({ name: 'Text-to-HTML Ratio', category: 'foundational_seo', severity: 'warning' }),
+    createMockAuditItem({ name: 'Page Response Time', category: 'foundational_seo', severity: 'warning' }),
+    createMockAuditItem({ name: 'Redirect Chains', category: 'foundational_seo', severity: 'warning' }),
+    createMockAuditItem({ name: 'Character Encoding & Doctype', category: 'foundational_seo', severity: 'error' }),
+    createMockAuditItem({ name: 'HTML Page Size', category: 'foundational_seo', severity: 'warning' }),
+    createMockAuditItem({ name: 'Crawl Depth', category: 'foundational_seo', severity: 'notice' }),
+    // Non-scored (4)
+    createMockAuditItem({ name: 'security.txt', category: 'non_scored', severity: 'info' }),
+    createMockAuditItem({ name: 'tdmrep.json', category: 'non_scored', severity: 'info' }),
+    createMockAuditItem({ name: 'manifest.json', category: 'non_scored', severity: 'info' }),
+    createMockAuditItem({ name: 'humans.txt', category: 'non_scored', severity: 'info' }),
   ];
 
   return {
@@ -54,14 +90,14 @@ export function createMockAuditResult(overrides: Partial<AuditResult> = {}): Aud
     grade: 'F',
     items: defaultItems,
     summary: {
-      critical: { passed: 0, total: 6 },
-      high: { passed: 0, total: 6 },
-      medium: { passed: 0, total: 5 },
-      low: { passed: 0, total: 2 },
-      seo: { passed: 0, total: 6 },
-      eeat: { passed: 0, total: 4 },
-      aeo: { passed: 0, total: 4 },
+      ai_infrastructure: { passed: 0, total: 10 },
+      content_quality: { passed: 0, total: 20 },
+      ai_discoverability: { passed: 0, total: 10 },
+      foundational_seo: { passed: 0, total: 16 },
+      non_scored: { passed: 0, total: 4 },
     },
+    issueCounts: { errors: 0, warnings: 0, notices: 0 },
+    subScores: { aiSearchHealth: 0 },
     ...overrides,
   };
 }
@@ -79,6 +115,8 @@ function createMockGeoFiles(overrides: Partial<ExistingGeoFiles> = {}): Existing
     humansTxt: null,
     manifestJson: null,
     bingSiteAuth: null,
+    agentCardJson: null,
+    agentsJson: null,
     ...overrides,
   };
 }
@@ -129,6 +167,9 @@ export function createMockPageData(overrides: Partial<PageData> = {}): PageData 
       bingVerification: null,
       yandexVerification: null,
       viewport: null,
+      hreflang: [],
+      charset: 'utf-8',
+      hasDoctype: true,
     },
     content: {
       headings: [{ level: 1, text: 'Test' }],
@@ -147,6 +188,10 @@ export function createMockPageData(overrides: Partial<PageData> = {}): PageData 
     images: [],
     lastModified: null,
     responseHeaders: {},
+    htmlSizeBytes: 30,
+    responseTimeMs: 200,
+    redirectChain: [],
+    crawlDepth: 0,
     ...overrides,
   };
 }
@@ -158,7 +203,7 @@ export function createMockCrawlResult(overrides: Partial<SiteCrawlResult> = {}):
     pages: [createMockPageData()],
     siteIdentity: createMockSiteIdentity(),
     existingGeoFiles: createMockGeoFiles(),
-    crawlStats: { totalPages: 1, totalTime: 1000, errors: 0 },
+    crawlStats: { totalPages: 1, totalTime: 1000, errors: 0, failedPages: [] },
     ...overrides,
   };
 }

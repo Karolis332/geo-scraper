@@ -12,7 +12,7 @@ import { extractSiteIdentity } from '../extractors/site-identity-extractor.js';
 import { extractDomain, isSameDomain, normalizeUrl } from '../utils/url-utils.js';
 import type {
   PageData, SiteCrawlResult, ExistingGeoFiles,
-  SiteIdentity, CrawlOptions,
+  SiteIdentity, CrawlOptions, FailedPage,
 } from './page-data.js';
 
 // Crawlee bundles its own cheerio version which may differ from ours.
@@ -34,6 +34,8 @@ const GEO_FILE_PATHS = [
   { key: 'humansTxt', path: '/humans.txt' },
   { key: 'manifestJson', path: '/manifest.json' },
   { key: 'bingSiteAuth', path: '/BingSiteAuth.xml' },
+  { key: 'agentCardJson', path: '/.well-known/agent-card.json' },
+  { key: 'agentsJson', path: '/agents.json' },
 ] as const;
 
 export async function crawlSite(
@@ -44,8 +46,8 @@ export async function crawlSite(
   const baseUrl = new URL(targetUrl).origin;
   const domain = extractDomain(targetUrl);
   const pages: PageData[] = [];
+  const failedPages: FailedPage[] = [];
   const startTime = Date.now();
-  let errorCount = 0;
 
   const log = (msg: string, verboseOnly = false) => {
     if (onProgress && (!verboseOnly || options.verbose)) onProgress(msg);
@@ -59,7 +61,19 @@ export async function crawlSite(
     maxRequestsPerCrawl: options.maxPages,
     maxConcurrency: options.concurrency,
     requestHandlerTimeoutSecs: 30,
+    navigationTimeoutSecs: 15,
     maxRequestRetries: 2,
+    additionalMimeTypes: ['application/xhtml+xml'],
+    preNavigationHooks: [
+      (ctx, gotOptions) => {
+        gotOptions.headers = {
+          ...gotOptions.headers,
+          'User-Agent': 'Mozilla/5.0 (compatible; GeoScraper/1.0; +https://github.com/nicobrinkkemper/geo-scraper)',
+        };
+        // Track request start time for response time measurement
+        ctx.request.userData.requestStartTime = Date.now();
+      },
+    ],
 
     async requestHandler({ request, $, response }: CheerioCrawlingContext) {
       const url = request.loadedUrl || request.url;
@@ -72,7 +86,18 @@ export async function crawlSite(
         return;
       }
 
-      const meta = extractMeta($ as any, url);
+      // Calculate response time
+      const requestStartTime = (request.userData.requestStartTime as number) || Date.now();
+      const responseTimeMs = Date.now() - requestStartTime;
+
+      // Cap stored HTML to prevent OOM on huge pages
+      let html = $.html();
+      const htmlSizeBytes = Buffer.byteLength(html, 'utf-8');
+      if (html.length > MAX_HTML_SIZE) {
+        html = html.slice(0, MAX_HTML_SIZE);
+      }
+
+      const meta = extractMeta($ as any, url, html);
       const content = extractContent($ as any);
       const navigation = extractNavigation($ as any, baseUrl);
       const breadcrumbs = extractBreadcrumbs($ as any, baseUrl);
@@ -87,11 +112,14 @@ export async function crawlSite(
         }
       }
 
-      // Cap stored HTML to prevent OOM on huge pages
-      let html = $.html();
-      if (html.length > MAX_HTML_SIZE) {
-        html = html.slice(0, MAX_HTML_SIZE);
+      // Build redirect chain from request vs loaded URL
+      const redirectChain: import('./page-data.js').RedirectHop[] = [];
+      if (request.loadedUrl && request.loadedUrl !== request.url) {
+        redirectChain.push({ url: request.url, statusCode: 301 });
       }
+
+      // Crawl depth from user data
+      const crawlDepth = (request.userData.depth as number) || 0;
 
       const pageData: PageData = {
         url,
@@ -108,11 +136,15 @@ export async function crawlSite(
         images,
         lastModified: headers['last-modified'] || null,
         responseHeaders: headers,
+        htmlSizeBytes,
+        responseTimeMs,
+        redirectChain,
+        crawlDepth,
       };
 
       pages.push(pageData);
 
-      // Enqueue internal links
+      // Enqueue internal links with incremented depth
       const linksToEnqueue: string[] = [];
       for (const link of internalLinks) {
         if (isSameDomain(link, baseUrl)) {
@@ -124,18 +156,26 @@ export async function crawlSite(
       }
 
       if (linksToEnqueue.length > 0) {
-        await crawler.addRequests(linksToEnqueue.map(u => ({ url: u })));
+        await crawler.addRequests(linksToEnqueue.map(u => ({
+          url: u,
+          userData: { depth: crawlDepth + 1 },
+        })));
       }
     },
 
     failedRequestHandler({ request }, error) {
-      errorCount++;
+      failedPages.push({
+        url: request.url,
+        statusCode: (request as any).response?.statusCode,
+        error: error.message,
+        retries: request.retryCount,
+      });
       log(`Failed: ${request.url} — ${error.message}`);
     },
   });
 
-  // Start with the target URL
-  await crawler.run([targetUrl]);
+  // Start with the target URL (depth 0)
+  await crawler.run([{ url: targetUrl, userData: { depth: 0 } }]);
 
   // Deduplicate pages by canonical URL
   const deduplicatedPages = deduplicateByCanonical(pages);
@@ -166,7 +206,8 @@ export async function crawlSite(
     crawlStats: {
       totalPages: deduplicatedPages.length,
       totalTime: Date.now() - startTime,
-      errors: errorCount,
+      errors: failedPages.length,
+      failedPages,
     },
   };
 }
@@ -212,7 +253,7 @@ async function fetchExistingGeoFiles(baseUrl: string): Promise<ExistingGeoFiles>
           const isHtmlPage = /<!DOCTYPE|<html/i.test(text);
           const isXmlFile = key === 'sitemapXml';
           const isBingSiteAuth = key === 'bingSiteAuth';
-          const isJsonFile = key === 'manifestJson' || key === 'aiJson' || key === 'tdmrepJson';
+          const isJsonFile = key === 'manifestJson' || key === 'aiJson' || key === 'tdmrepJson' || key === 'agentCardJson' || key === 'agentsJson';
 
           if (isXmlFile) {
             // Accept sitemap if it contains <urlset> or <sitemapindex>

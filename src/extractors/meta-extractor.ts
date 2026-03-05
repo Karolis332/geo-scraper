@@ -25,7 +25,7 @@ function extractAuthorBio($: CheerioAPI): string | null {
   return null;
 }
 
-export function extractMeta($: CheerioAPI, url: string): PageMeta {
+export function extractMeta($: CheerioAPI, url: string, rawHtml?: string): PageMeta {
   const getMeta = (name: string): string | null => {
     return (
       $(`meta[name="${name}"]`).attr('content') ||
@@ -70,6 +70,30 @@ export function extractMeta($: CheerioAPI, url: string): PageMeta {
     getMeta('dateModified') ||
     null;
 
+  // Extract hreflang tags
+  const hreflang: { lang: string; url: string }[] = [];
+  $('link[hreflang]').each((_, el) => {
+    const lang = $(el).attr('hreflang');
+    const href = $(el).attr('href');
+    if (lang && href) {
+      hreflang.push({ lang, url: href });
+    }
+  });
+
+  // Extract charset
+  const charset =
+    $('meta[charset]').attr('charset') ||
+    (() => {
+      const ct = $('meta[http-equiv="Content-Type"]').attr('content') || '';
+      const match = ct.match(/charset=([^\s;]+)/i);
+      return match ? match[1] : null;
+    })();
+
+  // Check for DOCTYPE (needs raw HTML)
+  const hasDoctype = rawHtml
+    ? /^\s*<!doctype\s/i.test(rawHtml)
+    : true; // assume true if raw HTML not available
+
   return {
     title,
     description,
@@ -94,5 +118,8 @@ export function extractMeta($: CheerioAPI, url: string): PageMeta {
     bingVerification: getMeta('msvalidate.01'),
     yandexVerification: getMeta('yandex-verification'),
     viewport: getMeta('viewport'),
+    hreflang,
+    charset: charset || null,
+    hasDoctype,
   };
 }

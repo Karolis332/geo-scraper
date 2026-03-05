@@ -4,6 +4,7 @@
  */
 
 import type { AuditResult, AuditItem } from '../analyzer/geo-auditor.js';
+import { CATEGORY_WEIGHTS } from '../analyzer/geo-auditor.js';
 import type { SiteCrawlResult } from '../crawler/page-data.js';
 
 /** Items that improve to specific scores after deploying generated files */
@@ -41,22 +42,19 @@ export function generateProjectedAudit(before: AuditResult): AuditResult {
   });
 
   // Recalculate scores with same weighting as geo-auditor
-  const weights: Record<string, number> = { critical: 3, high: 2, medium: 1, low: 0.5, seo: 1.5, eeat: 1.5, aeo: 1.5 };
   let totalWeightedScore = 0;
   let totalWeightedMax = 0;
 
   const summary: Record<string, { passed: number; total: number }> = {
-    critical: { passed: 0, total: 0 },
-    high: { passed: 0, total: 0 },
-    medium: { passed: 0, total: 0 },
-    low: { passed: 0, total: 0 },
-    seo: { passed: 0, total: 0 },
-    eeat: { passed: 0, total: 0 },
-    aeo: { passed: 0, total: 0 },
+    ai_infrastructure: { passed: 0, total: 0 },
+    content_quality: { passed: 0, total: 0 },
+    ai_discoverability: { passed: 0, total: 0 },
+    foundational_seo: { passed: 0, total: 0 },
+    non_scored: { passed: 0, total: 0 },
   };
 
   for (const item of projectedItems) {
-    const weight = weights[item.category] ?? 1;
+    const weight = CATEGORY_WEIGHTS[item.category] ?? 1;
     totalWeightedScore += item.score * weight;
     totalWeightedMax += item.maxScore * weight;
     summary[item.category].total++;
@@ -67,12 +65,24 @@ export function generateProjectedAudit(before: AuditResult): AuditResult {
     ? Math.round((totalWeightedScore / totalWeightedMax) * 100)
     : 0;
 
+  // Count issues by severity for the projected result
+  const issueCounts = { errors: 0, warnings: 0, notices: 0 };
+  for (const item of projectedItems) {
+    if (item.status !== 'pass' && item.status !== 'not_applicable') {
+      if (item.severity === 'error') issueCounts.errors++;
+      else if (item.severity === 'warning') issueCounts.warnings++;
+      else if (item.severity === 'notice') issueCounts.notices++;
+    }
+  }
+
   return {
     overallScore,
     maxPossibleScore: 100,
     grade: scoreToGrade(overallScore),
     items: projectedItems,
     summary: summary as AuditResult['summary'],
+    issueCounts,
+    subScores: before.subScores,
   };
 }
 
@@ -106,10 +116,12 @@ function getScoreGradient(score: number): string {
 }
 
 function priorityLabel(cat: string): string {
-  if (cat === 'critical') return 'Critical';
-  if (cat === 'high') return 'High Priority';
-  if (cat === 'medium') return 'Medium';
-  return 'Low';
+  if (cat === 'ai_infrastructure') return 'AI Infra';
+  if (cat === 'content_quality') return 'Content';
+  if (cat === 'ai_discoverability') return 'Discovery';
+  if (cat === 'foundational_seo') return 'SEO';
+  if (cat === 'non_scored') return 'Info';
+  return cat;
 }
 
 export function generateComparisonHtml(
@@ -379,10 +391,11 @@ export function generateComparisonHtml(
       padding: 2px 8px;
       border-radius: 4px;
     }
-    .priority-critical { background: rgba(248,113,113,0.12); color: var(--red); }
-    .priority-high { background: rgba(251,191,36,0.12); color: var(--yellow); }
-    .priority-medium { background: rgba(96,165,250,0.12); color: var(--blue); }
-    .priority-low { background: rgba(161,161,170,0.12); color: var(--text-dim); }
+    .priority-ai_infrastructure { background: rgba(248,113,113,0.12); color: var(--red); }
+    .priority-content_quality { background: rgba(251,191,36,0.12); color: var(--yellow); }
+    .priority-ai_discoverability { background: rgba(96,165,250,0.12); color: var(--blue); }
+    .priority-foundational_seo { background: rgba(45,212,191,0.12); color: #2dd4bf; }
+    .priority-non_scored { background: rgba(161,161,170,0.12); color: var(--text-dim); }
     .delta-pill {
       font-size: 0.8rem;
       font-weight: 700;

@@ -143,13 +143,10 @@ export function generateVisibilityHtml(result: VisibilityResult): string {
   .error { color: var(--red); font-style: italic; }
   .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
   .badge-brand { background: rgba(129,140,248,0.12); color: #a5b4fc; }
-  .badge-service { background: rgba(103,232,249,0.1); color: #67e8f9; }
-  .badge-product { background: rgba(251,191,36,0.1); color: #fbbf24; }
-  .badge-location { background: rgba(134,239,172,0.1); color: #86efac; }
-  .badge-industry { background: rgba(216,180,254,0.1); color: #d8b4fe; }
-  .badge-competitor { background: rgba(252,165,165,0.1); color: #fca5a5; }
-  .badge-longtail { background: rgba(94,234,212,0.1); color: #5eead4; }
-  .badge-page { background: rgba(251,146,60,0.1); color: #fb923c; }
+  .badge-generic_faq { background: rgba(103,232,249,0.1); color: #67e8f9; }
+  .badge-purchase_intent { background: rgba(251,191,36,0.1); color: #fbbf24; }
+  .badge-page_specific { background: rgba(251,146,60,0.1); color: #fb923c; }
+  .badge-lang { display: inline-block; padding: 0.1rem 0.4rem; border-radius: 3px; font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-left: 4px; background: rgba(255,255,255,0.06); color: var(--text-muted); }
   .platform-tips { margin-bottom: 2rem; }
   .tip-card {
     background: var(--surface);
@@ -256,15 +253,17 @@ export function generateVisibilityHtml(result: VisibilityResult): string {
 
   <h2>Queries & Results</h2>
   <table>
-    <tr><th>Query</th><th>Category</th><th>Target Page</th><th>Engine</th><th>Result</th><th>Context</th></tr>
+    <tr><th>Query</th><th>Category</th><th>Lang</th><th>Target Page</th><th>Engine</th><th>Result</th><th>Context</th></tr>
     ${result.responses.map((r) => {
       const sq = result.queries.find((q) => q.query === r.query);
       const targetCell = sq?.targetPage
         ? `<a href="${escHtml(sq.targetPage)}" target="_blank" style="color:var(--accent);text-decoration:none" title="${escHtml(sq.targetPage)}">${escHtml(truncateUrl(sq.targetPage))}</a>`
         : '<span style="color:var(--text-muted)">Site-wide</span>';
+      const langBadge = sq?.language ? `<span class="badge-lang">${escHtml(sq.language.toUpperCase())}</span>` : '';
       return `<tr>
       <td>${escHtml(r.query)}</td>
-      <td>${categoryBadge(sq?.category || 'industry')}</td>
+      <td>${categoryBadge(sq?.category || 'generic_faq')}</td>
+      <td>${langBadge}</td>
       <td>${targetCell}</td>
       <td>${escHtml(engineDisplayName(r.engine))}</td>
       <td>${r.error ? `<span class="error">Error</span>` : mentionBadge(r)}</td>

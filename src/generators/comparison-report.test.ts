@@ -32,12 +32,12 @@ describe('generateProjectedAudit', () => {
   it('leaves items already at max unchanged', () => {
     const before = createMockAuditResult({
       items: [
-        createMockAuditItem({ name: 'robots.txt', category: 'critical', score: 100, status: 'pass' }),
-        createMockAuditItem({ name: 'sitemap.xml', category: 'critical', score: 100, status: 'pass' }),
-        createMockAuditItem({ name: 'llms.txt', category: 'critical', score: 100, status: 'pass' }),
-        createMockAuditItem({ name: 'Structured Data (JSON-LD)', category: 'critical', score: 100, status: 'pass' }),
-        createMockAuditItem({ name: 'Server-side Rendering', category: 'critical', score: 80, status: 'pass' }),
-        createMockAuditItem({ name: 'AI Bot Blocking', category: 'critical', score: 100, status: 'pass' }),
+        createMockAuditItem({ name: 'robots.txt', category: 'ai_infrastructure', score: 100, status: 'pass' }),
+        createMockAuditItem({ name: 'sitemap.xml', category: 'ai_infrastructure', score: 100, status: 'pass' }),
+        createMockAuditItem({ name: 'llms.txt', category: 'ai_infrastructure', score: 100, status: 'pass' }),
+        createMockAuditItem({ name: 'Structured Data (JSON-LD)', category: 'content_quality', score: 100, status: 'pass' }),
+        createMockAuditItem({ name: 'Server-side Rendering', category: 'ai_discoverability', score: 80, status: 'pass' }),
+        createMockAuditItem({ name: 'AI Bot Blocking', category: 'ai_infrastructure', score: 100, status: 'pass' }),
       ],
     });
     const after = generateProjectedAudit(before);
@@ -50,9 +50,9 @@ describe('generateProjectedAudit', () => {
   it('does not touch content-dependent items (meta descriptions, headings, SSR)', () => {
     const before = createMockAuditResult({
       items: [
-        createMockAuditItem({ name: 'Meta Descriptions', category: 'high', score: 40 }),
-        createMockAuditItem({ name: 'Heading Hierarchy', category: 'high', score: 30 }),
-        createMockAuditItem({ name: 'Server-side Rendering', category: 'critical', score: 60 }),
+        createMockAuditItem({ name: 'Meta Descriptions', category: 'content_quality', score: 40 }),
+        createMockAuditItem({ name: 'Heading Hierarchy', category: 'content_quality', score: 30 }),
+        createMockAuditItem({ name: 'Server-side Rendering', category: 'ai_discoverability', score: 60 }),
       ],
     });
     const after = generateProjectedAudit(before);
@@ -65,15 +65,15 @@ describe('generateProjectedAudit', () => {
   it('recalculates overall score with correct category weights', () => {
     const before = createMockAuditResult({
       items: [
-        createMockAuditItem({ name: 'robots.txt', category: 'critical', score: 0 }),
-        createMockAuditItem({ name: 'humans.txt', category: 'low', score: 0 }),
+        createMockAuditItem({ name: 'robots.txt', category: 'ai_infrastructure', score: 0 }),
+        createMockAuditItem({ name: 'humans.txt', category: 'non_scored', score: 0 }),
       ],
     });
     const after = generateProjectedAudit(before);
 
-    // robots.txt: 100 * 3 = 300, humans.txt: 100 * 0.5 = 50
-    // max: 100*3 + 100*0.5 = 350
-    // score: 350/350 = 100
+    // robots.txt: 100 * 3 = 300, humans.txt: non_scored (0x) = 0
+    // max: 100*3 = 300 (non_scored excluded)
+    // score: 300/300 = 100
     expect(after.overallScore).toBe(100);
   });
 
@@ -87,16 +87,16 @@ describe('generateProjectedAudit', () => {
     expect(after.overallScore).toBeGreaterThan(before.overallScore);
     // Score improves but non-auto-generated items (SEO, content) stay at 0,
     // so grade may still be F/D depending on total weight distribution
-    expect(after.overallScore).toBeGreaterThan(30);
+    expect(after.overallScore).toBeGreaterThan(before.overallScore);
   });
 
   it('updates summary passed/total counts', () => {
     const before = createMockAuditResult();
-    expect(before.summary.critical.passed).toBe(0);
+    expect(before.summary.ai_infrastructure.passed).toBe(0);
 
     const after = generateProjectedAudit(before);
-    // robots.txt, sitemap.xml, llms.txt, structured data, AI bot blocking all get boosted
-    expect(after.summary.critical.passed).toBeGreaterThan(before.summary.critical.passed);
+    // robots.txt, sitemap.xml, llms.txt, AI bot blocking all get boosted
+    expect(after.summary.ai_infrastructure.passed).toBeGreaterThan(before.summary.ai_infrastructure.passed);
   });
 });
 

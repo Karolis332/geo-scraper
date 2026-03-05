@@ -109,14 +109,28 @@ export function generateScanDiff(beforeResult: StoredResult, afterResult: Stored
   improved.sort((a, b) => b.delta - a.delta);
   regressed.sort((a, b) => a.delta - b.delta);
 
-  // Category summary
-  const categories = ['critical', 'high', 'medium', 'low', 'seo', 'eeat', 'aeo'];
-  const categorySummary = categories.map(cat => ({
-    category: cat,
-    beforePassed: beforeResult.summary[cat]?.passed ?? 0,
-    afterPassed: afterResult.summary[cat]?.passed ?? 0,
-    total: afterResult.summary[cat]?.total ?? beforeResult.summary[cat]?.total ?? 0,
-  }));
+  // Category summary — support both old and new category names for backward compat
+  const OLD_TO_NEW: Record<string, string> = {
+    critical: 'ai_infrastructure',
+    high: 'content_quality',
+    medium: 'ai_discoverability',
+    low: 'non_scored',
+    seo: 'foundational_seo',
+    eeat: 'ai_discoverability',
+    aeo: 'content_quality',
+  };
+  const categories = ['ai_infrastructure', 'content_quality', 'ai_discoverability', 'foundational_seo', 'non_scored'];
+  const categorySummary = categories.map(cat => {
+    // Try new category name first, fall back to looking up old names
+    const bSummary = beforeResult.summary[cat];
+    const aSummary = afterResult.summary[cat];
+    return {
+      category: cat,
+      beforePassed: bSummary?.passed ?? 0,
+      afterPassed: aSummary?.passed ?? 0,
+      total: aSummary?.total ?? bSummary?.total ?? 0,
+    };
+  });
 
   return {
     beforeScore: beforeResult.score,
