@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>geo-scraper — Admin Console</title>
+<style>
+  :root {
+    --bg: #0f131c;
+    --panel: #171d2a;
+    --panel-2: #1e2636;
+    --line: #2b354c;
+    --text: #e7ecf7;
+    --muted: #9aa7c4;
+    --accent: #22c55e;
+    --danger: #ef4444;
+    --warn: #f59e0b;
+    --radius: 10px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', Tahoma, sans-serif;
+    color: var(--text);
+    min-height: 100vh;
+    background:
+      radial-gradient(1200px 450px at 50% -20%, rgba(34, 197, 94, 0.18), transparent 62%),
+      var(--bg);
+  }
+  .shell { max-width: 1200px; margin: 0 auto; padding: 24px 18px 40px; }
+  .top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .title { font-size: 24px; font-weight: 700; }
+  .subtitle { font-size: 13px; color: var(--muted); margin-top: 3px; }
+  .actions { display: flex; gap: 8px; }
+  .btn {
+    border: 1px solid var(--line);
+    background: var(--panel-2);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 7px 11px;
+    font-size: 13px;
+    cursor: pointer;
+    text-decoration: none;
+  }
+  .btn:hover { border-color: #3d4e6f; }
+  .btn-danger { border-color: rgba(239, 68, 68, 0.6); color: #fecaca; }
+  .btn-green { border-color: rgba(34, 197, 94, 0.7); color: #bbf7d0; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(140px, 1fr));
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .stat {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 12px;
+  }
+  .stat-value { font-size: 24px; font-weight: 700; }
+  .stat-label { font-size: 12px; color: var(--muted); margin-top: 3px; }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 14px;
+    margin-top: 12px;
+  }
+  .card h2 {
+    font-size: 15px;
+    margin-bottom: 10px;
+    color: #dbe6ff;
+    text-transform: uppercase;
+    letter-spacing: .6px;
+  }
+
+  .form {
+    display: grid;
+    grid-template-columns: 1.1fr 1fr 1fr 1fr auto;
+    gap: 8px;
+    align-items: end;
+  }
+  label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  input, select {
+    width: 100%;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    padding: 8px 9px;
+    background: #121826;
+    color: var(--text);
+    outline: none;
+  }
+  input:focus, select:focus { border-color: #4f648f; }
+
+  table { width: 100%; border-collapse: collapse; }
+  th, td { border-bottom: 1px solid var(--line); padding: 9px 8px; text-align: left; font-size: 13px; vertical-align: top; }
+  th { color: var(--muted); font-size: 12px; text-transform: uppercase; }
+  tr:last-child td { border-bottom: 0; }
+  .muted { color: var(--muted); }
+  .pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    border: 1px solid var(--line);
+    text-transform: uppercase;
+  }
+  .pill-admin { color: #bbf7d0; border-color: rgba(34, 197, 94, .5); }
+  .pill-sales { color: #c7d2fe; border-color: rgba(99, 102, 241, .5); }
+  .pill-off { color: #fecaca; border-color: rgba(239, 68, 68, .55); }
+
+  .err { color: var(--danger); font-size: 13px; margin-top: 8px; }
+  .ok { color: var(--accent); font-size: 13px; margin-top: 8px; }
+
+  @media (max-width: 1000px) {
+    .grid { grid-template-columns: repeat(2, minmax(140px, 1fr)); }
+    .form { grid-template-columns: 1fr; }
+    .actions { flex-wrap: wrap; }
+  }
+</style>
+</head>
+<body>
+  <div class="shell">
+    <div class="top">
+      <div>
+        <div class="title">Admin Console</div>
+        <div class="subtitle" id="whoami">Loading user...</div>
+      </div>
+      <div class="actions">
+        <a class="btn" href="/">Dashboard</a>
+        <a class="btn" href="/employee.html">Sales Page</a>
+        <button class="btn btn-danger" onclick="logout()">Logout</button>
+      </div>
+    </div>
+
+    <div class="grid" id="overview"></div>
+
+    <div class="card">
+      <h2>Create User</h2>
+      <form class="form" id="create-user-form">
+        <div>
+          <label>Username</label>
+          <input id="new-username" required>
+        </div>
+        <div>
+          <label>Display Name</label>
+          <input id="new-display" required>
+        </div>
+        <div>
+          <label>Password (min 8)</label>
+          <input id="new-password" type="password" required>
+        </div>
+        <div>
+          <label>Role</label>
+          <select id="new-role">
+            <option value="sales">sales</option>
+            <option value="admin">admin</option>
+          </select>
+        </div>
+        <div>
+          <button class="btn btn-green" type="submit">Create</button>
+        </div>
+      </form>
+      <div id="create-msg"></div>
+    </div>
+
+    <div class="card">
+      <h2>Users</h2>
+      <div id="users"></div>
+    </div>
+
+    <div class="card">
+      <h2>Activity Logs</h2>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
+        <button class="btn" onclick="loadLogs()">Refresh</button>
+        <label style="margin:0">Limit</label>
+        <select id="log-limit" onchange="loadLogs()" style="width:120px">
+          <option value="100">100</option>
+          <option value="200" selected>200</option>
+          <option value="500">500</option>
+        </select>
+      </div>
+      <div id="logs"></div>
+    </div>
+  </div>
+
+<script>
+  let me = null;
+
+  function esc(v) {
+    const el = document.createElement('div');
+    el.textContent = v == null ? '' : String(v);
+    return el.innerHTML;
+  }
+
+  function fmtDate(v) {
+    if (!v) return '—';
+    return new Date(v).toLocaleString('lt-LT');
+  }
+
+  async function authGuard() {
+    const res = await fetch('/api/auth/me');
+    const data = await res.json();
+    if (!data.authenticated) {
+      window.location.replace('/login.html');
+      return false;
+    }
+    if (data.user.role !== 'admin') {
+      window.location.replace('/employee.html');
+      return false;
+    }
+    me = data.user;
+    document.getElementById('whoami').textContent = `${me.displayName} (${me.username})`; 
+    return true;
+  }
+
+  async function loadOverview() {
+    const res = await fetch('/api/admin/overview');
+    if (!res.ok) return;
+    const d = await res.json();
+    document.getElementById('overview').innerHTML = `
+      <div class="stat"><div class="stat-value">${d.userCount}</div><div class="stat-label">Users</div></div>
+      <div class="stat"><div class="stat-value">${d.activeUserCount}</div><div class="stat-label">Active users</div></div>
+      <div class="stat"><div class="stat-value">${d.jobCount}</div><div class="stat-label">Jobs total</div></div>
+      <div class="stat"><div class="stat-value">${d.runningJobCount}</div><div class="stat-label">Jobs running</div></div>
+    `;
+  }
+
+  async function loadUsers() {
+    const res = await fetch('/api/admin/users');
+    if (!res.ok) {
+      document.getElementById('users').innerHTML = '<div class="err">Failed to load users.</div>';
+      return;
+    }
+
+    const users = await res.json();
+    if (users.length === 0) {
+      document.getElementById('users').innerHTML = '<div class="muted">No users found.</div>';
+      return;
+    }
+
+    document.getElementById('users').innerHTML = `<table>
+      <thead>
+        <tr>
+          <th>Username</th>
+          <th>Display Name</th>
+          <th>Role</th>
+          <th>Status</th>
+          <th>Last Login</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${users.map((u) => {
+          const rolePill = `<span class="pill ${u.role === 'admin' ? 'pill-admin' : 'pill-sales'}">${esc(u.role)}</span>`;
+          const statusPill = u.active === 1
+            ? '<span class="pill">active</span>'
+            : '<span class="pill pill-off">disabled</span>';
+
+          return `<tr>
+            <td>${esc(u.username)}</td>
+            <td>${esc(u.display_name)}</td>
+            <td>${rolePill}</td>
+            <td>${statusPill}</td>
+            <td class="muted">${esc(fmtDate(u.last_login_at))}</td>
+            <td>
+              <button class="btn" onclick="toggleUser('${u.id}', ${u.active === 1 ? 0 : 1})">${u.active === 1 ? 'Disable' : 'Enable'}</button>
+              <button class="btn" onclick="changeRole('${u.id}', '${u.role === 'admin' ? 'sales' : 'admin'}')">Role</button>
+              <button class="btn" onclick="resetPassword('${u.id}')">Reset PW</button>
+              <button class="btn btn-danger" onclick="deleteUser('${u.id}')">Delete</button>
+            </td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
+  }
+
+  async function loadLogs() {
+    const limit = document.getElementById('log-limit').value;
+    const res = await fetch(`/api/admin/logs?limit=${encodeURIComponent(limit)}`);
+    if (!res.ok) {
+      document.getElementById('logs').innerHTML = '<div class="err">Failed to load logs.</div>';
+      return;
+    }
+
+    const logs = await res.json();
+    if (!logs.length) {
+      document.getElementById('logs').innerHTML = '<div class="muted">No activity logs yet.</div>';
+      return;
+    }
+
+    document.getElementById('logs').innerHTML = `<table>
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>User</th>
+          <th>Action</th>
+          <th>Method</th>
+          <th>Path/Stage</th>
+          <th>Status</th>
+          <th>Details</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${logs.map((l) => {
+          let details = '—';
+          if (l.details_json) {
+            try {
+              details = JSON.stringify(JSON.parse(l.details_json));
+            } catch {
+              details = l.details_json;
+            }
+          }
+
+          return `<tr>
+            <td class="muted">${esc(fmtDate(l.created_at))}</td>
+            <td>${esc(l.actor_username || 'system')}</td>
+            <td>${esc(l.action)}</td>
+            <td>${esc(l.method || '—')}</td>
+            <td>${esc(l.path || '—')}</td>
+            <td>${esc(l.status_code == null ? '—' : l.status_code)}</td>
+            <td class="muted">${esc(details).slice(0, 220)}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
+  }
+
+  async function toggleUser(userId, active) {
+    const res = await fetch('/api/admin/users/' + userId, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ active }),
+    });
+
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      alert(d.error || 'Failed to update user');
+      return;
+    }
+
+    await loadUsers();
+    await loadOverview();
+  }
+
+  async function changeRole(userId, role) {
+    if (!confirm('Change role to ' + role + '?')) return;
+
+    const res = await fetch('/api/admin/users/' + userId, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role }),
+    });
+
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      alert(d.error || 'Failed to change role');
+      return;
+    }
+
+    await loadUsers();
+  }
+
+  async function resetPassword(userId) {
+    const pw = prompt('Enter new password (min 8 chars):');
+    if (!pw) return;
+
+    const res = await fetch('/api/admin/users/' + userId + '/password', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pw }),
+    });
+
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      alert(d.error || 'Failed to update password');
+      return;
+    }
+
+    alert('Password updated');
+  }
+
+  async function deleteUser(userId) {
+    if (!confirm('Delete this user?')) return;
+
+    const res = await fetch('/api/admin/users/' + userId, { method: 'DELETE' });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      alert(d.error || 'Failed to delete user');
+      return;
+    }
+
+    await loadUsers();
+    await loadOverview();
+  }
+
+  document.getElementById('create-user-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const msg = document.getElementById('create-msg');
+    msg.className = '';
+    msg.textContent = '';
+
+    const payload = {
+      username: document.getElementById('new-username').value.trim(),
+      displayName: document.getElementById('new-display').value.trim(),
+      password: document.getElementById('new-password').value,
+      role: document.getElementById('new-role').value,
+    };
+
+    const res = await fetch('/api/admin/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      msg.className = 'err';
+      msg.textContent = data.error || 'Failed to create user';
+      return;
+    }
+
+    msg.className = 'ok';
+    msg.textContent = 'User created';
+    document.getElementById('new-username').value = '';
+    document.getElementById('new-display').value = '';
+    document.getElementById('new-password').value = '';
+    document.getElementById('new-role').value = 'sales';
+
+    await loadUsers();
+    await loadOverview();
+  });
+
+  async function logout() {
+    await fetch('/api/auth/logout', { method: 'POST' }).catch(() => null);
+    window.location.replace('/login.html');
+  }
+
+  (async () => {
+    try {
+      const ok = await authGuard();
+      if (!ok) return;
+      await Promise.all([loadOverview(), loadUsers(), loadLogs()]);
+    } catch {
+      document.body.innerHTML = '<div style="padding:20px;color:#fff">Failed to connect to server.</div>';
+    }
+  })();
+</script>
+</body>
+</html>

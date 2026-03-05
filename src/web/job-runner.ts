@@ -9,6 +9,7 @@ import { join } from 'node:path';
 
 import { crawlSite } from '../crawler/site-crawler.js';
 import { auditSite, calculatePriorityActions } from '../analyzer/geo-auditor.js';
+import { calculateGeoServiceScore } from '../analyzer/geo-service-score.js';
 import { generateLlmsTxt } from '../generators/llms-txt.js';
 import { generateLlmsFullTxt } from '../generators/llms-full-txt.js';
 import { generateRobotsTxt } from '../generators/robots-txt.js';
@@ -37,13 +38,11 @@ export interface ProgressEvent {
   percent: number;
 }
 
+export type ProgressLogger = (event: ProgressEvent) => void;
+
 /** Global event emitter — listeners keyed by jobId */
 export const jobEvents = new EventEmitter();
 jobEvents.setMaxListeners(100);
-
-function emit(jobId: string, stage: string, message: string, percent: number): void {
-  jobEvents.emit(jobId, { stage, message, percent } as ProgressEvent);
-}
 
 // ============================================================================
 // SCAN JOB
@@ -53,30 +52,37 @@ export async function runScanJob(
   db: JobDatabase,
   jobId: string,
   url: string,
-  opts: { maxPages: number; concurrency: number; outputDir: string },
+  opts: { maxPages: number; concurrency: number; outputDir: string; onProgress?: ProgressLogger },
 ): Promise<void> {
+  const emitProgress = (stage: string, message: string, percent: number) => {
+    const event = { stage, message, percent } as ProgressEvent;
+    jobEvents.emit(jobId, event);
+    opts.onProgress?.(event);
+  };
+
   try {
     db.updateJobRunning(jobId);
 
     // Stage 1: Crawl
-    emit(jobId, 'crawl', 'Crawling site...', 0);
+    emitProgress('crawl', 'Crawling site...', 0);
     const crawlResult = await crawlSite(url, {
       maxPages: opts.maxPages,
       concurrency: opts.concurrency,
       jsRender: false,
       verbose: false,
     }, (msg: string) => {
-      emit(jobId, 'crawl', msg, 10);
+      emitProgress('crawl', msg, 10);
     });
-    emit(jobId, 'crawl', `Crawled ${crawlResult.crawlStats.totalPages} pages`, 30);
+    emitProgress('crawl', `Crawled ${crawlResult.crawlStats.totalPages} pages`, 30);
 
     // Stage 2: Audit
-    emit(jobId, 'audit', 'Auditing GEO compliance...', 35);
+    emitProgress('audit', 'Auditing GEO compliance...', 35);
     const audit = auditSite(crawlResult);
-    emit(jobId, 'audit', `Score: ${audit.overallScore}/100 (${audit.grade})`, 50);
+    const geoServiceScore = calculateGeoServiceScore(audit.items);
+    emitProgress('audit', `Score: ${audit.overallScore}/100 (${audit.grade})`, 50);
 
     // Stage 3: Generate files
-    emit(jobId, 'generate', 'Generating GEO files...', 55);
+    emitProgress('generate', 'Generating GEO files...', 55);
 
     const generatorOpts: GeneratorOptions = {
       allowTraining: true,
@@ -119,11 +125,11 @@ export async function runScanJob(
     const projected = generateProjectedAudit(audit);
     files.push({ path: 'comparison-report.html', content: generateComparisonHtml(audit, projected, crawlResult) });
 
-    emit(jobId, 'generate', 'Writing files...', 80);
+    emitProgress('generate', 'Writing files...', 80);
     for (const file of files) {
       await writeFile(join(opts.outputDir, file.path), file.content, 'utf-8');
     }
-    emit(jobId, 'generate', `Generated ${files.length} files`, 95);
+    emitProgress('generate', `Generated ${files.length} files`, 95);
 
     // Calculate priority actions
     const priorityActions = calculatePriorityActions(audit);
@@ -133,7 +139,13 @@ export async function runScanJob(
       type: 'scan',
       score: audit.overallScore,
       grade: audit.grade,
+      geoServiceScore,
       pagesScanned: crawlResult.crawlStats.totalPages,
+      crawlErrors: crawlResult.crawlStats.errors,
+      failedPages: crawlResult.crawlStats.failedPages.length,
+      crawlTimeMs: crawlResult.crawlStats.totalTime,
+      externalLinksChecked: crawlResult.externalLinkChecks.length,
+      internalRedirectsDetected: crawlResult.internalRedirectChecks.length,
       filesGenerated: files.length,
       auditItems: audit.items,
       summary: audit.summary,
@@ -142,12 +154,12 @@ export async function runScanJob(
     });
 
     db.updateJobCompleted(jobId, audit.overallScore, audit.grade, resultJson);
-    emit(jobId, 'done', 'Scan complete', 100);
+    emitProgress('done', 'Scan complete', 100);
 
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     db.updateJobFailed(jobId, message);
-    emit(jobId, 'error', message, 100);
+    emitProgress('error', message, 100);
   }
 }
 
@@ -159,8 +171,14 @@ export async function runCheckJob(
   db: JobDatabase,
   jobId: string,
   url: string,
-  opts: { maxPages: number; concurrency: number; queryCount: number; outputDir: string; region?: string | null },
+  opts: { maxPages: number; concurrency: number; queryCount: number; outputDir: string; region?: string | null; onProgress?: ProgressLogger },
 ): Promise<void> {
+  const emitProgress = (stage: string, message: string, percent: number) => {
+    const event = { stage, message, percent } as ProgressEvent;
+    jobEvents.emit(jobId, event);
+    opts.onProgress?.(event);
+  };
+
   try {
     db.updateJobRunning(jobId);
 
@@ -199,27 +217,27 @@ export async function runCheckJob(
     }
 
     // Stage 1: Crawl
-    emit(jobId, 'crawl', 'Crawling site...', 0);
+    emitProgress('crawl', 'Crawling site...', 0);
     const crawlResult = await crawlSite(url, {
       maxPages: opts.maxPages,
       concurrency: opts.concurrency,
       jsRender: false,
       verbose: false,
     }, (msg: string) => {
-      emit(jobId, 'crawl', msg, 5);
+      emitProgress('crawl', msg, 5);
     });
-    emit(jobId, 'crawl', `Crawled ${crawlResult.crawlStats.totalPages} pages`, 15);
+    emitProgress('crawl', `Crawled ${crawlResult.crawlStats.totalPages} pages`, 15);
 
     // Stage 2: Extract business context
-    emit(jobId, 'context', 'Extracting business context...', 20);
+    emitProgress('context', 'Extracting business context...', 20);
     const businessContext = extractBusinessContext(crawlResult);
     if (opts.region) {
       businessContext.location = opts.region;
     }
-    emit(jobId, 'context', `Context: ${businessContext.name}`, 25);
+    emitProgress('context', `Context: ${businessContext.name}`, 25);
 
     // Stage 3: Generate queries
-    emit(jobId, 'queries', 'Generating search queries...', 30);
+    emitProgress('queries', 'Generating search queries...', 30);
     let genApiKey: string | null = null;
     let genProvider: 'openai' | 'anthropic' | 'gemini' | null = null;
     if (process.env.OPENAI_API_KEY) { genApiKey = process.env.OPENAI_API_KEY; genProvider = 'openai'; }
@@ -233,10 +251,10 @@ export async function runCheckJob(
     const pageQueries = await generatePageQueries(crawlResult.pages, businessContext, genApiKey, genProvider);
     queries.push(...pageQueries);
 
-    emit(jobId, 'queries', `Generated ${queries.length} queries (${siteWideCount} site-wide + ${pageQueries.length} page-specific)`, 35);
+    emitProgress('queries', `Generated ${queries.length} queries (${siteWideCount} site-wide + ${pageQueries.length} page-specific)`, 35);
 
     // Stage 4: Run queries
-    emit(jobId, 'search', 'Querying AI engines...', 40);
+    emitProgress('search', 'Querying AI engines...', 40);
     const allResponses: LLMResponse[] = [];
     let completed = 0;
     const total = queries.length * clients.length;
@@ -246,7 +264,7 @@ export async function runCheckJob(
       for (const query of queries) {
         completed++;
         const pct = 40 + Math.round((completed / total) * 40);
-        emit(jobId, 'search', `${client.name}: "${query.query.slice(0, 40)}..." (${completed}/${total})`, pct);
+        emitProgress('search', `${client.name}: "${query.query.slice(0, 40)}..." (${completed}/${total})`, pct);
 
         const response = await client.query(query.query);
         const detection = detectCitation(response.response, response.citations, domain, businessContext.name);
@@ -264,13 +282,13 @@ export async function runCheckJob(
     }
 
     // Stage 5: Score
-    emit(jobId, 'scoring', 'Calculating visibility scores...', 85);
+    emitProgress('scoring', 'Calculating visibility scores...', 85);
     const engineScores = scoreEngines(allResponses);
     const overallScore = calculateOverallScore(engineScores);
     const grade = scoreToGrade(overallScore);
 
     // Stage 6: Generate reports
-    emit(jobId, 'report', 'Generating reports...', 90);
+    emitProgress('report', 'Generating reports...', 90);
 
     const result: VisibilityResult = {
       site: { url, domain, name: businessContext.name },
@@ -299,11 +317,11 @@ export async function runCheckJob(
     });
 
     db.updateJobCompleted(jobId, overallScore, grade, resultJson);
-    emit(jobId, 'done', 'Check complete', 100);
+    emitProgress('done', 'Check complete', 100);
 
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     db.updateJobFailed(jobId, message);
-    emit(jobId, 'error', message, 100);
+    emitProgress('error', message, 100);
   }
 }

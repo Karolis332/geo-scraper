@@ -84,19 +84,25 @@ program.addCommand(checkCmd);
 const webCmd = new Command('web')
   .description('Start the web dashboard for running scans and viewing history')
   .option('-p, --port <n>', 'Port to listen on', '3000')
+  .option('--host <host>', 'Host to bind (use 0.0.0.0 for external access)', '127.0.0.1')
   .action(async (opts: Record<string, unknown>) => {
     try {
       const port = parseInt(opts.port as string, 10) || 3000;
+      const host = (opts.host as string) || '127.0.0.1';
       // Dynamic import so express/better-sqlite3 only load when needed
       const { createServer } = await import('./web/server.js');
       const dbPath = join(opts.output as string || './geo-output', 'geo-scraper.db');
-      const { server } = createServer(port, dbPath);
+      const { server } = createServer(port, dbPath, host);
 
       console.log('');
       console.log(chalk.bold.hex('#6366f1')('  geo-scraper web'));
       console.log(chalk.dim('  Dashboard running at:'));
       console.log('');
-      console.log(`  ${chalk.white(`http://localhost:${port}`)}`);
+      if (host === '0.0.0.0') {
+        console.log(`  ${chalk.white(`http://localhost:${port}`)}`);
+      } else {
+        console.log(`  ${chalk.white(`http://${host}:${port}`)}`);
+      }
       console.log('');
       console.log(chalk.dim('  Press Ctrl+C to stop.'));
       console.log('');

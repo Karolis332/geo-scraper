@@ -20,8 +20,20 @@
   input, select { font-family: inherit; font-size: 14px; }
 
   /* Header */
-  .header { padding: 20px 32px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 32px; }
+  .header { padding: 20px 32px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 16px; }
   .header h1 { font-size: 20px; font-weight: 700; color: var(--accent); }
+  .header-left { display: flex; align-items: center; gap: 32px; }
+  .header-right { display: flex; align-items: center; gap: 8px; }
+  .header-user { font-size: 12px; color: var(--text-dim); margin-right: 8px; }
+  .header-link {
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 7px 10px;
+    font-size: 12px;
+    text-decoration: none;
+  }
+  .header-link:hover { background: var(--surface2); color: var(--text); }
   .nav { display: flex; gap: 4px; }
   .nav button { background: none; border: 1px solid transparent; color: var(--text-dim); padding: 8px 16px; border-radius: var(--radius); transition: all 0.15s; }
   .nav button:hover { color: var(--text); background: var(--surface); }
@@ -138,16 +150,48 @@
   .schedule-toggle { background: none; border: 1px solid var(--border); border-radius: var(--radius); padding: 4px 12px; font-size: 12px; cursor: pointer; }
   .schedule-toggle.on { color: var(--green); border-color: var(--green); }
   .schedule-toggle.off { color: var(--red); border-color: var(--red); }
+
+  /* Diagnostics */
+  .diag-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 14px; }
+  .diag-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; margin-bottom: 10px; }
+  .diag-domain { font-size: 18px; font-weight: 700; }
+  .diag-sub { color: var(--text-dim); font-size: 12px; margin-top: 3px; }
+  .diag-grid { display: grid; grid-template-columns: repeat(4, minmax(120px, 1fr)); gap: 8px; margin: 10px 0; }
+  .diag-metric { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; }
+  .diag-metric .k { color: var(--text-dim); font-size: 11px; text-transform: uppercase; }
+  .diag-metric .v { font-size: 16px; font-weight: 700; margin-top: 2px; }
+  .diag-pill { display: inline-block; border-radius: 999px; padding: 2px 8px; font-size: 11px; font-weight: 600; text-transform: uppercase; border: 1px solid var(--border); }
+  .diag-pill.high { color: var(--green); border-color: rgba(34,197,94,0.6); }
+  .diag-pill.medium { color: var(--yellow); border-color: rgba(234,179,8,0.6); }
+  .diag-pill.low { color: var(--red); border-color: rgba(239,68,68,0.6); }
+  .diag-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+  .diag-col { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px; }
+  .diag-col h4 { font-size: 12px; color: var(--text-dim); text-transform: uppercase; margin-bottom: 6px; }
+  .diag-col ul { margin-left: 16px; display: grid; gap: 4px; }
+  .diag-col li { font-size: 12px; line-height: 1.4; color: var(--text); }
+  @media (max-width: 900px) {
+    .diag-grid { grid-template-columns: repeat(2, minmax(120px, 1fr)); }
+    .diag-cols { grid-template-columns: 1fr; }
+  }
 </style>
 </head>
 <body>
 
 <div class="header">
-  <h1>geo-scraper</h1>
-  <div class="nav">
-    <button class="active" onclick="showView('scan')">New Scan</button>
-    <button onclick="showView('history')">History</button>
-    <button onclick="showView('schedules')">Schedules</button>
+  <div class="header-left">
+    <h1>geo-scraper</h1>
+    <div class="nav">
+      <button class="active" onclick="showView('scan')">New Scan</button>
+      <button onclick="showView('history')">History</button>
+      <button onclick="showView('schedules')">Schedules</button>
+      <button onclick="showView('diagnostics')">Diagnostics</button>
+    </div>
+  </div>
+  <div class="header-right">
+    <span class="header-user" id="header-user">admin</span>
+    <a class="header-link" href="/employee.html">Sales Page</a>
+    <a class="header-link" href="/admin.html">Admin Console</a>
+    <button class="btn btn-secondary btn-sm" onclick="logout()">Logout</button>
   </div>
 </div>
 
@@ -199,6 +243,7 @@
         <button class="btn btn-primary btn-sm" id="btn-comparison" style="display:none;background:#22c55e;border-color:#22c55e" onclick="viewComparison()">Before / After</button>
         <button class="btn btn-secondary btn-sm" id="btn-comparison-pdf" style="display:none" onclick="viewComparison('pdf')" title="Export comparison as PDF">PDF</button>
         <button class="btn btn-secondary btn-sm" id="btn-comparison-csv" style="display:none" onclick="viewComparison('csv')" title="Export comparison as CSV">CSV</button>
+        <button class="btn btn-primary btn-sm" id="btn-ship" style="display:none;background:#16a34a;border-color:#16a34a" onclick="markCurrentJobShipped()">Mark as Shipped</button>
         <button class="btn btn-secondary btn-sm" id="btn-files" onclick="viewFiles()">Browse Files</button>
         <button class="btn btn-secondary btn-sm" onclick="resetForm()">New Scan</button>
       </div>
@@ -250,6 +295,15 @@
     </div>
     <div id="schedules-content"></div>
   </div>
+
+  <!-- DIAGNOSTICS VIEW -->
+  <div id="view-diagnostics" class="view">
+    <div class="diff-controls" style="margin-bottom:16px">
+      <button class="btn btn-secondary btn-sm" onclick="loadDiagnostics()">Refresh</button>
+      <span style="font-size:12px;color:var(--text-dim);margin-left:8px">Post-ship weekly confidence tracking</span>
+    </div>
+    <div id="diagnostics-content"></div>
+  </div>
 </div>
 
 <!-- Files Modal -->
@@ -265,19 +319,35 @@
   let currentJobId = null;
   let currentJobType = null;
   let eventSource = null;
+  initSession();
 
   // ── Navigation ─────────────────────────────────────────────────
   let selectedDiffJobs = [];
+
+  async function initSession() {
+    try {
+      const res = await fetch('/api/auth/me');
+      const data = await res.json();
+      if (!data.authenticated) {
+        window.location.replace('/login.html');
+        return;
+      }
+      document.getElementById('header-user').textContent = `${data.user.displayName} (${data.user.username})`;
+    } catch {
+      window.location.replace('/login.html');
+    }
+  }
 
   function showView(name) {
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.querySelectorAll('.nav button').forEach(b => b.classList.remove('active'));
     document.getElementById('view-' + name).classList.add('active');
-    const navIdx = { scan: 0, history: 1, schedules: 2, diff: 1 };
+    const navIdx = { scan: 0, history: 1, schedules: 2, diagnostics: 3, diff: 1 };
     const btn = document.querySelectorAll('.nav button')[navIdx[name] ?? 0];
     if (btn) btn.classList.add('active');
     if (name === 'history') { selectedDiffJobs = []; loadHistory(); }
     if (name === 'schedules') loadSchedules();
+    if (name === 'diagnostics') loadDiagnostics();
   }
 
   // ── Start Job ──────────────────────────────────────────────────
@@ -374,24 +444,36 @@
     document.getElementById('progress-card').style.display = 'none';
     document.getElementById('result-card').style.display = 'block';
 
-    const score = job.score || 0;
+    const result = job.result;
+    const isScan = job.type === 'scan';
+    const geoServiceScore = isScan && Number.isFinite(result?.geoServiceScore) ? result.geoServiceScore : (job.score || 0);
+    const overallScore = job.score || 0;
+    const score = isScan ? geoServiceScore : overallScore;
     const grade = job.grade || '?';
     const colorClass = score >= 70 ? 'score-green' : score >= 40 ? 'score-yellow' : 'score-red';
 
     document.getElementById('result-score').innerHTML =
       `<span class="${colorClass}">${score}<span class="grade">${grade}</span></span>`;
     document.getElementById('result-label').textContent =
-      job.type === 'scan' ? 'GEO Compliance Score' : 'AI Visibility Score';
+      isScan
+        ? `GEO paslaugos balas ${geoServiceScore}/100 · Bendras ${overallScore}/100`
+        : 'AI Visibility Score';
 
     // Show comparison button only for scan jobs
-    const isScan = job.type === 'scan';
     document.getElementById('btn-comparison').style.display = isScan ? '' : 'none';
     document.getElementById('btn-comparison-pdf').style.display = isScan ? '' : 'none';
     document.getElementById('btn-comparison-csv').style.display = isScan ? '' : 'none';
+    const shipBtn = document.getElementById('btn-ship');
+    shipBtn.style.display = isScan ? '' : 'none';
+    shipBtn.disabled = false;
+    shipBtn.textContent = 'Mark as Shipped';
+    if (isScan && job.shipment && job.shipment.shipped === 1) {
+      const diagText = job.shipment.weekly_diagnostics_enabled === 1 ? 'Weekly Diagnostics On' : 'Weekly Diagnostics Off';
+      shipBtn.textContent = `Shipped · ${diagText}`;
+    }
 
     // Render detail table
     const table = document.getElementById('result-table');
-    const result = job.result;
 
     // Render priority fixes
     const pfEl = document.getElementById('priority-fixes');
@@ -413,6 +495,17 @@
     }
 
     if (result && result.type === 'scan' && result.auditItems) {
+      const categoryScores = calculateCategoryScoresFromAuditItems(result.auditItems);
+      const scoreLine = [
+        `GEO paslaugos ${geoServiceScore}/100`,
+        `Bendras ${overallScore}/100`,
+        `SEO ${categoryScores.seo}/100`,
+        `AI Infra ${categoryScores.aiInfra}/100`,
+        `AI Discoverability ${categoryScores.discoverability}/100`,
+        `Content ${categoryScores.content}/100`,
+      ].join('  ·  ');
+      document.getElementById('result-label').textContent = scoreLine;
+
       table.innerHTML = `<thead><tr><th>Item</th><th>Category</th><th>Score</th><th>Status</th></tr></thead><tbody>` +
         result.auditItems.map(item =>
           `<tr><td>${esc(item.name)}</td><td>${esc(item.category)}</td>` +
@@ -562,9 +655,61 @@
     currentJobType = null;
   }
 
+  async function markCurrentJobShipped() {
+    if (!currentJobId || currentJobType !== 'scan') return;
+
+    const btn = document.getElementById('btn-ship');
+    const maxPages = parseInt(document.getElementById('max-pages').value, 10) || 50;
+    btn.disabled = true;
+    btn.textContent = 'Marking...';
+
+    try {
+      const res = await fetch('/api/jobs/' + currentJobId + '/ship', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enableWeeklyDiagnostics: true, maxPages, concurrency: 3 }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        btn.disabled = false;
+        btn.textContent = 'Mark as Shipped';
+        alert(data.error || 'Failed to mark shipped');
+        return;
+      }
+      await loadResults(currentJobId);
+      alert('Domain marked as shipped. Weekly diagnostics enabled.');
+    } catch (err) {
+      btn.disabled = false;
+      btn.textContent = 'Mark as Shipped';
+      alert('Failed: ' + (err.message || 'Unknown error'));
+    }
+  }
+
+  async function logout() {
+    await fetch('/api/auth/logout', { method: 'POST' }).catch(() => null);
+    window.location.replace('/login.html');
+  }
+
   // ── Helpers ────────────────────────────────────────────────────
   function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
   function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+  function num(v, fallback = 0) { return Number.isFinite(v) ? v : fallback; }
+
+  function calculateCategoryScoresFromAuditItems(items) {
+    const calc = (category) => {
+      const inCat = items.filter(i => i.category === category && i.status !== 'not_applicable' && i.maxScore > 0);
+      if (!inCat.length) return 0;
+      const total = inCat.reduce((sum, i) => sum + i.score, 0);
+      const max = inCat.reduce((sum, i) => sum + i.maxScore, 0);
+      return max > 0 ? Math.round((total / max) * 100) : 0;
+    };
+    return {
+      seo: calc('foundational_seo'),
+      aiInfra: calc('ai_infrastructure'),
+      discoverability: calc('ai_discoverability'),
+      content: calc('content_quality'),
+    };
+  }
 
   // ── Diff View ─────────────────────────────────────────────────
   function toggleDiffSelect(jobId) {
@@ -712,6 +857,78 @@
   async function deleteSchedule(id) {
     await fetch('/api/schedules/' + id, { method: 'DELETE' });
     loadSchedules();
+  }
+
+  // ── Diagnostics ───────────────────────────────────────────────
+  async function loadDiagnostics() {
+    const el = document.getElementById('diagnostics-content');
+    const res = await fetch('/api/diagnostics');
+    if (!res.ok) {
+      el.innerHTML = '<div class="empty-state">Failed to load diagnostics.</div>';
+      return;
+    }
+
+    const data = await res.json();
+    const diagnostics = data.diagnostics || [];
+    if (diagnostics.length === 0) {
+      el.innerHTML = '<div class="empty-state">No shipped domains yet. Mark a completed scan as shipped to start weekly diagnostics.</div>';
+      return;
+    }
+
+    el.innerHTML = diagnostics.map((d) => {
+      const geoTrend = d.metrics.geoTrend == null ? '—' : (d.metrics.geoTrend > 0 ? '+' : '') + d.metrics.geoTrend;
+      const visTrend = d.metrics.visibilityTrend == null ? '—' : (d.metrics.visibilityTrend > 0 ? '+' : '') + d.metrics.visibilityTrend;
+      const avgGeo = d.metrics.avgGeoScore == null ? '—' : d.metrics.avgGeoScore;
+      const avgVis = d.metrics.avgVisibilityScore == null ? '—' : d.metrics.avgVisibilityScore;
+      const shippedAt = d.shippedAt ? new Date(d.shippedAt).toLocaleString() : '—';
+
+      const crawler = d.confidence.crawlerReliability;
+      const impact = d.confidence.geoImpact;
+      return `<div class="diag-card">
+        <div class="diag-head">
+          <div>
+            <div class="diag-domain">${esc(d.domain)}</div>
+            <div class="diag-sub">${esc(d.url)} · Shipped: ${esc(shippedAt)} · Weekly diagnostics: ${d.weeklyDiagnosticsEnabled ? 'On' : 'Off'}</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn btn-danger btn-sm" onclick="unshipDomain('${esc(d.domain)}')">Unship</button>
+          </div>
+        </div>
+
+        <div class="diag-grid">
+          <div class="diag-metric"><div class="k">Scans</div><div class="v">${num(d.metrics.scans)}</div></div>
+          <div class="diag-metric"><div class="k">Checks</div><div class="v">${num(d.metrics.checks)}</div></div>
+          <div class="diag-metric"><div class="k">Avg GEO</div><div class="v">${esc(avgGeo)}</div></div>
+          <div class="diag-metric"><div class="k">Avg Visibility</div><div class="v">${esc(avgVis)}</div></div>
+          <div class="diag-metric"><div class="k">GEO Trend</div><div class="v">${esc(geoTrend)}</div></div>
+          <div class="diag-metric"><div class="k">Visibility Trend</div><div class="v">${esc(visTrend)}</div></div>
+          <div class="diag-metric"><div class="k">Avg Pages Crawled</div><div class="v">${d.metrics.avgPagesCrawled == null ? '—' : esc(d.metrics.avgPagesCrawled)}</div></div>
+          <div class="diag-metric"><div class="k">Zero-page Scans</div><div class="v">${num(d.metrics.zeroPageScans)}</div></div>
+        </div>
+
+        <div class="diag-cols">
+          <div class="diag-col">
+            <h4>Crawler Reliability <span class="diag-pill ${esc(crawler.level)}">${esc(crawler.level)} (${num(crawler.score)})</span></h4>
+            <ul>${(crawler.rationale || []).map((r) => `<li>${esc(r)}</li>`).join('')}</ul>
+          </div>
+          <div class="diag-col">
+            <h4>GEO Impact <span class="diag-pill ${esc(impact.level)}">${esc(impact.level)} (${num(impact.score)})</span></h4>
+            <ul>${(impact.rationale || []).map((r) => `<li>${esc(r)}</li>`).join('')}</ul>
+          </div>
+        </div>
+
+        <div class="diag-col" style="margin-top:10px">
+          <h4>Recommended Changes</h4>
+          <ul>${(d.recommendedChanges || []).map((x) => `<li>${esc(x)}</li>`).join('')}</ul>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  async function unshipDomain(domain) {
+    if (!confirm('Disable shipped state and weekly diagnostics for ' + domain + '?')) return;
+    await fetch('/api/domains/' + encodeURIComponent(domain) + '/unship', { method: 'POST' });
+    loadDiagnostics();
   }
 
   // Handle Enter key on URL input

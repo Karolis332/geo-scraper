@@ -4,6 +4,7 @@
 
 import type { AuditResult, AuditItem, PriorityAction } from '../analyzer/geo-auditor.js';
 import { calculatePriorityActions } from '../analyzer/geo-auditor.js';
+import { calculateGeoServiceScore } from '../analyzer/geo-service-score.js';
 import type { SiteCrawlResult } from '../crawler/page-data.js';
 
 interface ReportStrings {
@@ -14,7 +15,9 @@ interface ReportStrings {
   generated: string;
   pagesCrawled: string;
   time: string;
+  geoServiceScore: string;
   overallScore: string;
+  overallScoreWithSeo: string;
   pagesCrawledLabel: string;
   auditResults: string;
   ai_infrastructure: string;
@@ -59,7 +62,9 @@ const STRINGS_EN: ReportStrings = {
   generated: 'Generated',
   pagesCrawled: 'Pages crawled',
   time: 'Time',
+  geoServiceScore: 'GEO Service Score',
   overallScore: 'Overall Score',
+  overallScoreWithSeo: 'Overall Score (GEO + SEO)',
   pagesCrawledLabel: 'Pages Crawled',
   auditResults: 'Audit Results',
   ai_infrastructure: 'AI Infrastructure',
@@ -112,7 +117,9 @@ const STRINGS_LT: ReportStrings = {
   generated: 'Sukurta',
   pagesCrawled: 'Nuskaityta puslapių',
   time: 'Laikas',
+  geoServiceScore: 'GEO paslaugos balas',
   overallScore: 'Bendras balas',
+  overallScoreWithSeo: 'Bendras balas (GEO + SEO)',
   pagesCrawledLabel: 'Nuskaityta puslapių',
   auditResults: 'Audito rezultatai',
   ai_infrastructure: 'DI infrastruktūra',
@@ -230,6 +237,8 @@ const ITEM_RECS_LT: Record<string, string> = {
   // robots.txt
   'Add /robots.txt with explicit AI crawler directives (GPTBot, ClaudeBot, PerplexityBot, etc.)':
     'Pridėkite /robots.txt su aiškiomis DI robotų direktyvomis (GPTBot, ClaudeBot, PerplexityBot ir kt.)',
+  'Add explicit directives for AI crawlers: GPTBot, ClaudeBot, Google-Extended, PerplexityBot, Applebot-Extended':
+    'Pridėkite aiškias direktyvas DI robotams: GPTBot, ClaudeBot, Google-Extended, PerplexityBot, Applebot-Extended',
   'robots.txt has comprehensive AI crawler coverage':
     'robots.txt turi išsamų DI robotų padengimą',
   'robots.txt exists but has no AI crawler directives':
@@ -244,6 +253,10 @@ const ITEM_RECS_LT: Record<string, string> = {
   // llms.txt
   'Add /llms.txt following the llmstxt.org spec: H1 site name, blockquote summary, H2 sections with link lists':
     'Pridėkite /llms.txt pagal llmstxt.org specifikaciją: H1 svetainės pavadinimas, citatos santrauka, H2 skyriai su nuorodų sąrašais',
+  'Ensure llms.txt has: # Site Name, > summary blockquote, ## Sections with [link](url) lists':
+    'Užtikrinkite, kad llms.txt turėtų: # Svetainės pavadinimą, > santraukos citatą, ## skyrius su [nuoroda](url) sąrašais',
+  'llms.txt follows the spec correctly':
+    'llms.txt atitinka specifikaciją',
   // llms-full.txt
   'Add /llms-full.txt with complete site content in markdown for bulk LLM ingestion':
     'Pridėkite /llms-full.txt su visu svetainės turiniu markdown formatu LLM įkėlimui',
@@ -269,6 +282,10 @@ const ITEM_RECS_LT: Record<string, string> = {
     'Pridėkite /ai.txt ir /ai.json, kad apibrėžtumėte DI sąveikos leidimus, apribojimus ir priskyrimo reikalavimus',
   'Both AI policy files are present':
     'Abu DI politikos failai yra',
+  'Add /ai.txt for human-readable AI policy':
+    'Pridėkite /ai.txt žmogui skaitomai DI politikai',
+  'Add /ai.json for machine-parseable AI policy':
+    'Pridėkite /ai.json mašinai skaitomai DI politikai',
   // Meta Descriptions
   'Add meaningful meta descriptions to all pages — AI engines use these for summaries and citations':
     'Pridėkite prasmingus meta aprašymus visiems puslapiams — DI varikliai juos naudoja santraukoms ir citavimui',
@@ -307,6 +324,8 @@ const ITEM_RECS_LT: Record<string, string> = {
   // AI Content Directives
   'Add <meta name="robots" content="max-snippet:-1, max-image-preview:large"> to allow AI engines to use full content in responses':
     'Pridėkite <meta name="robots" content="max-snippet:-1, max-image-preview:large">, kad DI varikliai galėtų naudoti visą turinį atsakymuose',
+  'Increase coverage of max-snippet and max-image-preview across all pages':
+    'Padidinkite max-snippet ir max-image-preview direktyvų padengimą visuose puslapiuose',
   'AI content directives are well-configured':
     'DI turinio direktyvos tinkamai sukonfigūruotos',
   // manifest.json
@@ -402,6 +421,18 @@ const ITEM_RECS_LT: Record<string, string> = {
     'Atskirkite mokymo robotus (blokuokite CCBot, Bytespider) nuo paieškos robotų (leiskite OAI-SearchBot, ChatGPT-User) optimaliam DI matomumui su turinio apsauga',
   'Good bot strategy: training bots blocked, retrieval bots allowed':
     'Gera robotų strategija: mokymo robotai blokuoti, paieškos robotai leisti',
+  'Fix the JSON syntax in /.well-known/agent-card.json':
+    'Pataisykite JSON sintaksę faile /.well-known/agent-card.json',
+  'agent-card.json is well-configured for A2A agent discovery':
+    'agent-card.json tinkamai sukonfigūruotas A2A agentų atradimui',
+  'Add /agents.json to define AI agent API contracts — lists available agents, their endpoints, and interaction protocols for automated discovery':
+    'Pridėkite /agents.json, kad apibrėžtumėte DI agentų API sutartis: agentų sąrašą, galinius taškus ir sąveikos protokolus automatiniam atradimui',
+  'Fix the JSON syntax in /agents.json':
+    'Pataisykite JSON sintaksę faile /agents.json',
+  'Add agent definitions to /agents.json with name, description, and endpoint fields':
+    'Pridėkite agentų aprašus į /agents.json su pavadinimo, aprašymo ir galinio taško laukais',
+  'agents.json is configured with agent definitions':
+    'agents.json sukonfigūruotas su agentų aprašais',
   'Give every page a unique title tag. Duplicate titles confuse search engines and AI models about which page to cite for a topic.':
     'Suteikite kiekvienam puslapiui unikalią pavadinimo žymą. Pasikartojantys pavadinimai klaidina paieškos variklius ir DI modelius dėl to, kurį puslapį cituoti.',
   'All page titles are unique — good!':
@@ -465,8 +496,8 @@ const ITEM_RECS_LT: Record<string, string> = {
   'Add hreflang tags to all pages on multilingual sites. Correct hreflang helps AI engines serve the right language version in responses.':
     'Pridėkite hreflang žymes visuose daugiakalbių svetainių puslapiuose. Teisingas hreflang padeda AI varikliams pateikti tinkamą kalbos versiją.',
   // Tier 3 checks
-  'agent-card.json': 'Pridėkite /.well-known/agent-card.json — A2A protokolo atradimo kortelė leidžia DI agentams atrasti jūsų svetainės galimybes',
-  'agents.json': 'Pridėkite /agents.json — apibrėžia DI agentų API sutartis automatiniam atradimui',
+  'Add /.well-known/agent-card.json — the A2A (Agent-to-Agent) protocol discovery card enables AI agents to discover your site\'s capabilities and interact programmatically':
+    'Pridėkite /.well-known/agent-card.json — A2A (Agent-to-Agent) atradimo kortelę, kuri leidžia DI agentams aptikti svetainės galimybes ir sąveikauti programiškai',
   'Content Quotability Score': 'Rašykite savarankiškus paragrafus (20-80 žodžių), kurie yra suprantami be konteksto. DI varikliai cituoja atskirus paragrafus.',
   'Topic Cluster Detection': 'Kurkite teminius klasterius: sukurkite išsamius ramstinius puslapius (>500 žodžių) ir nukreipkite palaikomąjį turinį į juos.',
 };
@@ -704,11 +735,24 @@ function detectLanguage(crawlResult: SiteCrawlResult): string {
   for (const [lang, count] of Object.entries(langCounts)) {
     if (count > topCount) { topLang = lang; topCount = count; }
   }
+  // Fallback for sites that omit lang attribute in HTML.
+  if (topCount === 0 && crawlResult.domain.toLowerCase().endsWith('.lt')) {
+    return 'lt';
+  }
   return topLang;
 }
 
 function t(strings: ReportStrings, key: keyof ReportStrings): string | string[] {
   return strings[key];
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 function getClientGuide(itemName: string, lang: string): string | null {
@@ -723,8 +767,23 @@ function translateItemName(name: string, lang: string): string {
 }
 
 function translateItemRec(rec: string, lang: string): string {
-  if (lang === 'lt') return ITEM_RECS_LT[rec] || rec;
-  return rec;
+  if (lang !== 'lt') return rec;
+  if (ITEM_RECS_LT[rec]) return ITEM_RECS_LT[rec];
+
+  let translated = rec;
+  translated = translated.replace(
+    /^Add directives for:\s*(.+)$/,
+    'Pridėkite direktyvas šiems DI robotams: $1',
+  );
+  translated = translated.replace(
+    /^Remove "Disallow: \/" for these AI crawlers to allow indexing: (.+)\. 5\.9% of sites accidentally block GPTBot\.$/,
+    'Pašalinkite „Disallow: /“ šiems DI robotams, kad būtų leidžiamas indeksavimas: $1. Apie 5,9% svetainių netyčia blokuoja GPTBot.',
+  );
+  translated = translated.replace(
+    /^Add (.+) fields to agent-card\.json for complete A2A agent discovery$/,
+    'Pridėkite laukus $1 į agent-card.json pilnam A2A agentų atradimui',
+  );
+  return translated;
 }
 
 function translateItemDetails(details: string, lang: string): string {
@@ -815,6 +874,7 @@ export function generateAuditReportHtml(
   const { domain, baseUrl, crawlStats, siteIdentity, pages } = crawlResult;
   const siteName = siteIdentity.name || domain;
   const gradeColor = getGradeColor(audit.grade);
+  const geoServiceScore = calculateGeoServiceScore(audit.items);
   const logoSrc = siteIdentity.logoUrl || siteIdentity.faviconUrl;
   const clientActionItems = getClientActionItems(audit);
   const lang = detectLanguage(crawlResult);
@@ -1231,6 +1291,7 @@ export function generateAuditReportHtml(
       </div>
       <p><strong>${siteName}</strong> &mdash; <a href="${baseUrl}">${baseUrl}</a></p>
       <p>${s.generated}: ${new Date().toISOString().split('T')[0]} | ${s.pagesCrawled}: ${crawlStats.totalPages} | ${s.time}: ${(crawlStats.totalTime / 1000).toFixed(1)}s</p>
+      <p>${s.geoServiceScore}: ${geoServiceScore}/100 | ${s.overallScoreWithSeo}: ${audit.overallScore}/100</p>
     </div>
     <div class="grade-circle">
       <span class="grade-letter">${audit.grade}</span>
@@ -1240,7 +1301,11 @@ export function generateAuditReportHtml(
 
   <div class="stats-grid">
     <div class="stat-card">
-      <div class="label">${s.overallScore}</div>
+      <div class="label">${s.geoServiceScore}</div>
+      <div class="value" style="color:${geoServiceScore >= 70 ? '#34d399' : geoServiceScore >= 40 ? '#fbbf24' : '#f87171'}">${geoServiceScore}%</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">${s.overallScoreWithSeo}</div>
       <div class="value" style="color:${gradeColor}">${audit.overallScore}%</div>
     </div>
     <div class="stat-card">
@@ -1288,12 +1353,15 @@ ${clientActionItems.length > 0 ? `
     <p class="intro">${s.actionItemsIntro}</p>
 ${clientActionItems.map((item, i) => {
     const guide = getClientGuide(item.name, lang) || translateItemRec(item.recommendation, lang);
+    const title = escapeHtml(translateItemName(item.name, lang));
+    const description = escapeHtml(guide);
+    const categoryLabel = escapeHtml(translateCategory(item.category, lang));
     return `    <div class="action-item${item.status === 'fail' ? ' action-fail' : ''}">
       <div class="action-num">${i + 1}</div>
       <div class="action-body">
-        <div class="action-title">${translateItemName(item.name, lang)}</div>
-        <div class="action-desc">${guide}</div>
-        <div class="action-score">${s.actionCurrentScore}: ${item.score}/${item.maxScore} &middot; ${s.actionPriority}: ${translateCategory(item.category, lang)}</div>${renderAffectedUrls(item, i, s)}
+        <div class="action-title">${title}</div>
+        <div class="action-desc">${description}</div>
+        <div class="action-score">${s.actionCurrentScore}: ${item.score}/${item.maxScore} &middot; ${s.actionPriority}: ${categoryLabel}</div>${renderAffectedUrls(item, i, s)}
       </div>
     </div>`;
   }).join('\n')}
@@ -1406,12 +1474,16 @@ function renderCategory(title: string, category: string, items: AuditItem[], lan
       : `<div style="font-size:0.8rem;color:var(--text-dim);text-align:right">${item.score}/${item.maxScore}</div>
       <div class="score-bar"><div class="score-fill" style="width:${item.score}%;background:linear-gradient(90deg,${gradientFrom},${gradientTo})"></div></div>`;
 
+    const itemName = escapeHtml(translateItemName(item.name, lang));
+    const itemDetails = escapeHtml(translateItemDetails(item.details, lang));
+    const itemRec = escapeHtml(translateItemRec(item.recommendation, lang));
+
     html += `  <div class="audit-item">
     <div class="status-icon ${statusClass}">${statusIcon}</div>
     <div class="item-content">
-      <div class="item-name">${translateItemName(item.name, lang)}</div>
-      <div class="item-details">${translateItemDetails(item.details, lang)}</div>
-      <div class="item-rec">${translateItemRec(item.recommendation, lang)}</div>
+      <div class="item-name">${itemName}</div>
+      <div class="item-details">${itemDetails}</div>
+      <div class="item-rec">${itemRec}</div>
     </div>
     <div>
       ${scoreDisplay}
@@ -1442,10 +1514,10 @@ ${actions.map(action => `    <div class="priority-fix-card">
       </div>
       <div class="priority-fix-body">
         <div class="priority-fix-title">
-          ${translateItemName(action.name, lang)}
+          ${escapeHtml(translateItemName(action.name, lang))}
           <span class="effort-pill effort-${action.effort}">${action.effort}</span>
         </div>
-        <div class="priority-fix-rec">${getClientGuide(action.name, lang) || translateItemRec(action.recommendation, lang)}</div>
+        <div class="priority-fix-rec">${escapeHtml(getClientGuide(action.name, lang) || translateItemRec(action.recommendation, lang))}</div>
       </div>
     </div>`).join('\n')}
   </div>`;
@@ -1538,6 +1610,7 @@ export function generateSummaryJson(
   audit: AuditResult,
   crawlResult: SiteCrawlResult,
 ): string {
+  const geoServiceScore = calculateGeoServiceScore(audit.items);
   const summary = {
     site: {
       url: crawlResult.baseUrl,
@@ -1547,6 +1620,7 @@ export function generateSummaryJson(
       crawlTimeMs: crawlResult.crawlStats.totalTime,
     },
     audit: {
+      geoServiceScore,
       overallScore: audit.overallScore,
       grade: audit.grade,
       summary: audit.summary,

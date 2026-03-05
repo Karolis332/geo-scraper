@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>geo-scraper — Pardavimų puslapis</title>
+<style>
+  :root {
+    --bg: #f5f7fa;
+    --surface: #ffffff;
+    --text: #1f2937;
+    --muted: #64748b;
+    --line: #dbe3ee;
+    --brand: #0f766e;
+    --brand-soft: #e6fffb;
+    --danger: #b91c1c;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background:
+      radial-gradient(900px 300px at 15% -10%, rgba(15, 118, 110, 0.12), transparent 65%),
+      radial-gradient(900px 300px at 85% -10%, rgba(6, 182, 212, 0.12), transparent 65%),
+      var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', Tahoma, sans-serif;
+    min-height: 100vh;
+  }
+  .shell {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 28px 20px 42px;
+  }
+  .top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 18px;
+  }
+  .title {
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+  }
+  .subtitle {
+    color: var(--muted);
+    font-size: 14px;
+    margin-top: 4px;
+  }
+  .actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .btn {
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 13px;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .btn:hover { border-color: #b8c6d8; }
+  .btn-primary {
+    border-color: var(--brand);
+    background: var(--brand);
+    color: #fff;
+  }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(120px, 1fr));
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .stat {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 12px;
+  }
+  .stat-value { font-size: 22px; font-weight: 700; }
+  .stat-label { color: var(--muted); font-size: 12px; margin-top: 4px; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-top: 12px;
+  }
+  .card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  .domain { font-size: 19px; font-weight: 700; }
+  .meta { color: var(--muted); font-size: 13px; margin-top: 3px; }
+  .score {
+    min-width: 88px;
+    text-align: center;
+    border-radius: 10px;
+    background: var(--brand-soft);
+    color: var(--brand);
+    border: 1px solid #b7efe8;
+    padding: 8px;
+    font-weight: 700;
+  }
+  .score .label { display: block; font-size: 11px; font-weight: 500; color: #0f766e; opacity: 0.8; }
+  .cols {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(180px, 1fr));
+    gap: 12px;
+  }
+  .col {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 12px;
+    background: #fcfdff;
+  }
+  .col h3 { font-size: 13px; margin-bottom: 8px; color: #334155; text-transform: uppercase; letter-spacing: .5px; }
+  ul { margin-left: 16px; display: grid; gap: 7px; }
+  li { font-size: 13px; line-height: 1.4; }
+  .status {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 16px;
+  }
+  .error { color: var(--danger); }
+  .scan-box {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 14px;
+    margin-bottom: 12px;
+  }
+  .scan-row {
+    display: grid;
+    grid-template-columns: 1fr 120px auto;
+    gap: 8px;
+    align-items: end;
+  }
+  .scan-row label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .scan-row input {
+    width: 100%;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 9px 10px;
+    background: #fff;
+    color: var(--text);
+    outline: none;
+  }
+  .scan-row input:focus { border-color: #93c5fd; }
+  .progress {
+    margin-top: 10px;
+    display: none;
+  }
+  .progress.show { display: block; }
+  .progress-track {
+    width: 100%;
+    height: 8px;
+    border-radius: 6px;
+    background: #e2e8f0;
+    overflow: hidden;
+  }
+  .progress-fill {
+    width: 0%;
+    height: 100%;
+    background: linear-gradient(90deg, #0f766e, #14b8a6);
+    transition: width .2s ease;
+  }
+  .progress-text { margin-top: 6px; font-size: 12px; color: var(--muted); }
+  .score-tags {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+  }
+  .score-tag {
+    border: 1px solid var(--line);
+    background: #f8fafc;
+    border-radius: 999px;
+    padding: 3px 9px;
+    font-size: 12px;
+    color: #334155;
+  }
+  .score-tag strong { color: #0f766e; }
+
+  @media (max-width: 900px) {
+    .cols { grid-template-columns: 1fr; }
+    .stats { grid-template-columns: 1fr; }
+    .scan-row { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+  <div class="shell">
+    <div class="top">
+      <div>
+        <div class="title">Pardavimų argumentai</div>
+        <div class="subtitle">Parengta iš naujausių GEO audito rezultatų (lietuvių kalba)</div>
+      </div>
+      <div class="actions" id="top-actions">
+        <a class="btn" href="/">Administratoriaus skydelis</a>
+        <a class="btn" href="/admin.html" id="admin-link" style="display:none">Admin konsolė</a>
+        <button class="btn btn-primary" onclick="logout()">Atsijungti</button>
+      </div>
+    </div>
+
+    <div class="scan-box">
+      <div style="font-weight:600;margin-bottom:8px">Pridėti / leisti domeną ir paleisti analizę</div>
+      <div class="scan-row">
+        <div>
+          <label>Domenas arba URL</label>
+          <input id="scan-url" placeholder="https://pavyzdys.lt">
+        </div>
+        <div>
+          <label>Maks. puslapių</label>
+          <input id="scan-max-pages" type="number" min="5" max="200" value="30">
+        </div>
+        <div>
+          <button class="btn btn-primary" onclick="startSalesScan()">Pradėti analizę</button>
+        </div>
+      </div>
+      <div class="progress" id="scan-progress">
+        <div class="progress-track"><div class="progress-fill" id="scan-progress-fill"></div></div>
+        <div class="progress-text" id="scan-progress-text">Vykdoma...</div>
+      </div>
+    </div>
+
+    <div class="stats" id="stats"></div>
+    <div id="playbooks"></div>
+    <div class="status" id="status">Kraunama...</div>
+  </div>
+
+<script>
+  let currentUser = null;
+  let scanEventSource = null;
+  let runningSalesJobId = null;
+
+  function esc(v) {
+    const el = document.createElement('div');
+    el.textContent = v == null ? '' : String(v);
+    return el.innerHTML;
+  }
+
+  async function authGuard() {
+    const res = await fetch('/api/auth/me');
+    const data = await res.json();
+    if (!data.authenticated) {
+      window.location.replace('/login.html');
+      return false;
+    }
+
+    currentUser = data.user;
+    if (currentUser.role !== 'admin') {
+      document.getElementById('admin-link').style.display = 'none';
+      document.querySelector('a[href="/"]').style.display = 'none';
+    } else {
+      document.getElementById('admin-link').style.display = '';
+    }
+    return true;
+  }
+
+  async function loadPlaybooks() {
+    const status = document.getElementById('status');
+    const res = await fetch('/api/sales/playbooks');
+    if (res.status === 401) {
+      window.location.replace('/login.html');
+      return;
+    }
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      status.textContent = data.error || 'Nepavyko užkrauti duomenų.';
+      status.classList.add('error');
+      return;
+    }
+
+    const data = await res.json();
+    const playbooks = data.playbooks || [];
+
+    renderStats(playbooks);
+
+    if (playbooks.length === 0) {
+      document.getElementById('playbooks').innerHTML =
+        '<div class="card">Kol kas nėra užbaigtų auditų. Paleiskite bent vieną `scan` ir čia atsiras pardavimo argumentai.</div>';
+      status.textContent = '';
+      return;
+    }
+
+    document.getElementById('playbooks').innerHTML = playbooks.map((p) => {
+      const generated = new Date(p.generatedAt).toLocaleString('lt-LT');
+      const pagesScanned = p.pagesScanned == null ? '—' : String(p.pagesScanned);
+      const visibility = p.visibilityScore != null ? `${p.visibilityScore}/100` : '—';
+      const categoryScores = Array.isArray(p.categoryScores) ? p.categoryScores : [];
+
+      return `<div class="card">
+        <div class="card-head">
+          <div>
+            <div class="domain">${esc(p.domain)}</div>
+            <div class="meta">${esc(p.url)}</div>
+            <div class="meta">Atnaujinta: ${esc(generated)} | Puslapių nuskenuota: ${esc(pagesScanned)} | AI matomumas: ${esc(visibility)}</div>
+            <div class="score-tags">
+              ${categoryScores.map((c) => `<span class="score-tag">${esc(c.label)}: <strong>${c.score == null ? '—' : esc(c.score + '/100')}</strong></span>`).join('')}
+            </div>
+          </div>
+          <div class="score">${esc(p.geoScore)}/100 <span class="label">GEO paslauga · Bendras ${esc(p.overallScore)}/100 · ${esc(p.grade)}</span></div>
+        </div>
+        <div class="cols">
+          <div class="col">
+            <h3>Kodėl klientui verta</h3>
+            <ul>${p.sellingPointsLt.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>
+          </div>
+          <div class="col">
+            <h3>Ką pardavėjui akcentuoti</h3>
+            <ul>${p.actionPointsLt.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>
+          </div>
+          <div class="col">
+            <h3>Trūkstami failai ir poveikis</h3>
+            <ul>${p.quickPitchLt.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>
+            <div style="margin-top:10px"><a class="btn" href="${esc(p.reportUrl)}" target="_blank">Atidaryti auditą</a></div>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+
+    status.textContent = `Rasta domenų: ${playbooks.length}`;
+  }
+
+  function renderStats(playbooks) {
+    const avg = playbooks.length
+      ? Math.round(playbooks.reduce((sum, p) => sum + (p.geoScore || 0), 0) / playbooks.length)
+      : 0;
+    const withVisibility = playbooks.filter((p) => p.visibilityScore != null).length;
+
+    document.getElementById('stats').innerHTML = `
+      <div class="stat"><div class="stat-value">${playbooks.length}</div><div class="stat-label">Domenų su argumentais</div></div>
+      <div class="stat"><div class="stat-value">${avg}</div><div class="stat-label">Vidutinis GEO paslaugos balas</div></div>
+      <div class="stat"><div class="stat-value">${withVisibility}</div><div class="stat-label">Su AI matomumo testu</div></div>
+    `;
+  }
+
+  async function logout() {
+    await fetch('/api/auth/logout', { method: 'POST' }).catch(() => null);
+    window.location.replace('/login.html');
+  }
+
+  async function startSalesScan() {
+    const urlInput = document.getElementById('scan-url');
+    const maxPagesInput = document.getElementById('scan-max-pages');
+    const rawUrl = urlInput.value.trim();
+    if (!rawUrl) {
+      urlInput.focus();
+      return;
+    }
+
+    const maxPages = parseInt(maxPagesInput.value, 10) || 30;
+    const progressEl = document.getElementById('scan-progress');
+    const progressFill = document.getElementById('scan-progress-fill');
+    const progressText = document.getElementById('scan-progress-text');
+    progressEl.classList.add('show');
+    progressFill.style.width = '0%';
+    progressText.textContent = 'Paleidžiama analizė...';
+
+    try {
+      const res = await fetch('/api/sales/scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: rawUrl, maxPages, concurrency: 2 }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        progressText.textContent = data.error || 'Nepavyko paleisti analizės.';
+        return;
+      }
+
+      runningSalesJobId = data.jobId;
+      connectSalesProgress(data.jobId);
+    } catch {
+      progressText.textContent = 'Ryšio klaida su serveriu.';
+    }
+  }
+
+  function connectSalesProgress(jobId) {
+    if (scanEventSource) {
+      scanEventSource.close();
+      scanEventSource = null;
+    }
+    scanEventSource = new EventSource('/api/jobs/' + jobId + '/progress');
+
+    scanEventSource.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      const progressFill = document.getElementById('scan-progress-fill');
+      const progressText = document.getElementById('scan-progress-text');
+      progressFill.style.width = (data.percent || 0) + '%';
+      progressText.textContent = `${stageLabelLt(data.stage)}: ${data.message || ''}`;
+
+      if (data.stage === 'done') {
+        scanEventSource.close();
+        scanEventSource = null;
+        progressText.textContent = 'Analizė baigta. Atnaujiname pardavimų argumentus...';
+        setTimeout(async () => {
+          await loadPlaybooks();
+          progressText.textContent = 'Baigta.';
+        }, 600);
+      }
+
+      if (data.stage === 'error') {
+        scanEventSource.close();
+        scanEventSource = null;
+        progressText.textContent = `Klaida: ${data.message || 'Nepavyko užbaigti analizės.'}`;
+      }
+    };
+
+    scanEventSource.onerror = async () => {
+      scanEventSource.close();
+      scanEventSource = null;
+      await pollSalesJob(jobId);
+    };
+  }
+
+  async function pollSalesJob(jobId) {
+    try {
+      const res = await fetch('/api/jobs/' + jobId);
+      if (!res.ok) {
+        document.getElementById('scan-progress-text').textContent = 'Nepavyko gauti analizės būsenos.';
+        return;
+      }
+      const job = await res.json();
+      if (job.status === 'completed') {
+        document.getElementById('scan-progress-fill').style.width = '100%';
+        document.getElementById('scan-progress-text').textContent = 'Analizė baigta. Atnaujiname pardavimų argumentus...';
+        await loadPlaybooks();
+      } else if (job.status === 'failed') {
+        document.getElementById('scan-progress-text').textContent = `Klaida: ${job.error || 'Analizė nepavyko.'}`;
+      } else {
+        setTimeout(() => pollSalesJob(jobId), 1500);
+      }
+    } catch {
+      document.getElementById('scan-progress-text').textContent = 'Ryšio klaida tikrinant analizės būseną.';
+    }
+  }
+
+  function stageLabelLt(stage) {
+    if (stage === 'crawl') return 'Nuskaitymas';
+    if (stage === 'audit') return 'Auditas';
+    if (stage === 'generate') return 'Generavimas';
+    if (stage === 'done') return 'Baigta';
+    if (stage === 'error') return 'Klaida';
+    return 'Vykdoma';
+  }
+
+  (async () => {
+    try {
+      const ok = await authGuard();
+      if (!ok) return;
+      await loadPlaybooks();
+    } catch {
+      document.getElementById('status').textContent = 'Klaida jungiantis prie serverio.';
+      document.getElementById('status').classList.add('error');
+    }
+  })();
+</script>
+</body>
+</html>

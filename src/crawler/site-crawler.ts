@@ -22,6 +22,9 @@ import type {
 
 /** Maximum HTML size to store per page (2 MB) */
 const MAX_HTML_SIZE = 2 * 1024 * 1024;
+/** Keep link health checks bounded so scans don't appear stuck on large sites */
+const MAX_EXTERNAL_LINK_CHECKS = 250;
+const MAX_INTERNAL_REDIRECT_CHECKS = 250;
 
 const GEO_FILE_PATHS = [
   { key: 'robotsTxt', path: '/robots.txt' },
@@ -81,9 +84,14 @@ export async function crawlSite(
       log(`Crawling (${pages.length + 1}/${options.maxPages}): ${url}`);
       log(`Crawled: ${url}`, true);
 
-      // Only process same-domain HTML pages
-      const contentType = response?.headers?.['content-type'] || '';
-      if (!contentType.includes('text/html') && !contentType.includes('application/xhtml')) {
+      // Only process HTML pages, but tolerate incorrect/missing content-type headers.
+      const rawContentType = response?.headers?.['content-type'];
+      const contentType = Array.isArray(rawContentType)
+        ? rawContentType.join('; ')
+        : (rawContentType || '');
+      const rawHtml = $.html();
+      const looksLikeHtml = /<!doctype html|<html[\s>]/i.test(rawHtml);
+      if (!contentType.includes('text/html') && !contentType.includes('application/xhtml') && !looksLikeHtml) {
         return;
       }
 
@@ -92,7 +100,7 @@ export async function crawlSite(
       const responseTimeMs = Date.now() - requestStartTime;
 
       // Cap stored HTML to prevent OOM on huge pages
-      let html = $.html();
+      let html = rawHtml;
       const htmlSizeBytes = Buffer.byteLength(html, 'utf-8');
       if (html.length > MAX_HTML_SIZE) {
         html = html.slice(0, MAX_HTML_SIZE);
@@ -179,7 +187,15 @@ export async function crawlSite(
   await crawler.run([{ url: targetUrl, userData: { depth: 0 } }]);
 
   // Deduplicate pages by canonical URL
-  const deduplicatedPages = deduplicateByCanonical(pages);
+  let deduplicatedPages = deduplicateByCanonical(pages);
+  if (deduplicatedPages.length === 0) {
+    log('No HTML pages captured by crawler, attempting fallback fetch...', true);
+    const fallbackPage = await fetchFallbackPage(targetUrl, baseUrl);
+    if (fallbackPage) {
+      deduplicatedPages = [fallbackPage];
+      log(`Fallback captured page: ${fallbackPage.url}`, true);
+    }
+  }
 
   // Fetch existing GEO files
   log('Checking existing GEO files...');
@@ -223,6 +239,70 @@ export async function crawlSite(
   };
 }
 
+async function fetchFallbackPage(targetUrl: string, baseUrl: string): Promise<PageData | null> {
+  try {
+    const response = await fetch(targetUrl, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; GeoScraper/1.0; +https://github.com/nicobrinkkemper/geo-scraper)' },
+      redirect: 'follow',
+      signal: AbortSignal.timeout(15000),
+    });
+
+    const contentType = response.headers.get('content-type') || '';
+    let html = await response.text();
+    if (!contentType.includes('text/html') && !/<!doctype html|<html[\s>]/i.test(html)) {
+      return null;
+    }
+
+    const htmlSizeBytes = Buffer.byteLength(html, 'utf-8');
+    if (html.length > MAX_HTML_SIZE) {
+      html = html.slice(0, MAX_HTML_SIZE);
+    }
+
+    const $ = cheerioLoad(html);
+    const finalUrl = response.url || targetUrl;
+    const meta = extractMeta($ as any, finalUrl, html);
+    const content = extractContent($ as any);
+    const navigation = extractNavigation($ as any, baseUrl);
+    const breadcrumbs = extractBreadcrumbs($ as any, baseUrl);
+    const existingStructuredData = extractStructuredData($ as any);
+    const { internal: internalLinks, external: externalLinks } = extractLinks($ as any, finalUrl, baseUrl);
+    const images = extractImages($ as any);
+
+    const headers: Record<string, string> = {};
+    for (const [k, v] of response.headers.entries()) {
+      headers[k] = v;
+    }
+
+    const redirectChain: import('./page-data.js').RedirectHop[] = [];
+    if (finalUrl !== targetUrl) {
+      redirectChain.push({ url: targetUrl, statusCode: 301 });
+    }
+
+    return {
+      url: finalUrl,
+      statusCode: response.status,
+      contentType,
+      html,
+      meta,
+      content,
+      navigation,
+      breadcrumbs,
+      existingStructuredData,
+      internalLinks,
+      externalLinks,
+      images,
+      lastModified: headers['last-modified'] || null,
+      responseHeaders: headers,
+      htmlSizeBytes,
+      responseTimeMs: 0,
+      redirectChain,
+      crawlDepth: 0,
+    };
+  } catch {
+    return null;
+  }
+}
+
 /** Run async tasks with limited concurrency */
 async function runWithConcurrency<T>(
   items: T[],
@@ -257,12 +337,17 @@ async function checkExternalLinks(
 
   const uniqueUrls = Array.from(urlToSources.keys());
   if (uniqueUrls.length === 0) return [];
+  const urlsToCheck = uniqueUrls.slice(0, MAX_EXTERNAL_LINK_CHECKS);
 
-  log(`Checking ${uniqueUrls.length} external links...`);
+  if (uniqueUrls.length > urlsToCheck.length) {
+    log(`Checking ${urlsToCheck.length}/${uniqueUrls.length} external links (fast mode)...`);
+  } else {
+    log(`Checking ${urlsToCheck.length} external links...`);
+  }
   const results: ExternalLinkCheck[] = [];
   let checked = 0;
 
-  await runWithConcurrency(uniqueUrls, 10, async (url) => {
+  await runWithConcurrency(urlsToCheck, 10, async (url) => {
     let statusCode = 0;
     let error: string | undefined;
     try {
@@ -270,7 +355,7 @@ async function checkExternalLinks(
         method: 'HEAD',
         headers: { 'User-Agent': 'geo-scraper/1.0' },
         redirect: 'follow',
-        signal: AbortSignal.timeout(5000),
+        signal: AbortSignal.timeout(3000),
       });
       statusCode = response.status;
     } catch (e) {
@@ -279,7 +364,9 @@ async function checkExternalLinks(
     }
     results.push({ url, statusCode, error, sourcePages: urlToSources.get(url)! });
     checked++;
-    if (checked % 20 === 0) log(`  External links: ${checked}/${uniqueUrls.length}`, true);
+    if (checked % 20 === 0 || checked === urlsToCheck.length) {
+      log(`  External links: ${checked}/${urlsToCheck.length}`);
+    }
   });
 
   return results;
@@ -306,18 +393,23 @@ async function detectInternalRedirects(
 
   const uniqueUrls = Array.from(urlToSources.keys());
   if (uniqueUrls.length === 0) return [];
+  const urlsToCheck = uniqueUrls.slice(0, MAX_INTERNAL_REDIRECT_CHECKS);
 
-  log(`Checking ${uniqueUrls.length} internal URLs for redirects...`, true);
+  if (uniqueUrls.length > urlsToCheck.length) {
+    log(`Checking ${urlsToCheck.length}/${uniqueUrls.length} internal URLs for redirects (fast mode)...`);
+  } else {
+    log(`Checking ${urlsToCheck.length} internal URLs for redirects...`);
+  }
   const results: InternalRedirectCheck[] = [];
   let checked = 0;
 
-  await runWithConcurrency(uniqueUrls, 10, async (url) => {
+  await runWithConcurrency(urlsToCheck, 10, async (url) => {
     try {
       const response = await fetch(url, {
         method: 'HEAD',
         headers: { 'User-Agent': 'geo-scraper/1.0' },
         redirect: 'manual',
-        signal: AbortSignal.timeout(3000),
+        signal: AbortSignal.timeout(2000),
       });
       const status = response.status;
       if (status === 301 || status === 302 || status === 307 || status === 308) {
@@ -328,7 +420,9 @@ async function detectInternalRedirects(
       // Skip network errors for redirect detection
     }
     checked++;
-    if (checked % 20 === 0) log(`  Internal redirects: ${checked}/${uniqueUrls.length}`, true);
+    if (checked % 20 === 0 || checked === urlsToCheck.length) {
+      log(`  Internal redirects: ${checked}/${urlsToCheck.length}`);
+    }
   });
 
   return results;

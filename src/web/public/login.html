@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>geo-scraper — Login</title>
+<style>
+  :root {
+    --bg: #0b1020;
+    --surface: #111a2c;
+    --border: #23314f;
+    --text: #e8eefc;
+    --text-dim: #9cadcf;
+    --accent: #3b82f6;
+    --accent-2: #0ea5e9;
+    --danger: #ef4444;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    font-family: 'Segoe UI', Tahoma, sans-serif;
+    color: var(--text);
+    background:
+      radial-gradient(1200px 500px at -10% -10%, rgba(14, 165, 233, 0.18), transparent 60%),
+      radial-gradient(1200px 500px at 110% 110%, rgba(59, 130, 246, 0.20), transparent 60%),
+      var(--bg);
+    padding: 24px;
+  }
+  .card {
+    width: 100%;
+    max-width: 420px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    box-shadow: 0 20px 48px rgba(0, 0, 0, 0.28);
+  }
+  h1 {
+    font-size: 26px;
+    margin-bottom: 6px;
+    letter-spacing: 0.3px;
+  }
+  .subtitle {
+    color: var(--text-dim);
+    font-size: 14px;
+    margin-bottom: 20px;
+  }
+  label {
+    display: block;
+    font-size: 13px;
+    color: var(--text-dim);
+    margin: 12px 0 6px;
+  }
+  input {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #0b1324;
+    color: var(--text);
+    padding: 11px 12px;
+    outline: none;
+  }
+  input:focus {
+    border-color: var(--accent);
+  }
+  button {
+    width: 100%;
+    margin-top: 16px;
+    border: 0;
+    border-radius: 8px;
+    padding: 11px 12px;
+    font-weight: 600;
+    color: #fff;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    cursor: pointer;
+  }
+  button:hover { filter: brightness(1.05); }
+  #error {
+    margin-top: 10px;
+    min-height: 20px;
+    color: var(--danger);
+    font-size: 13px;
+  }
+  .hint {
+    margin-top: 14px;
+    color: var(--text-dim);
+    font-size: 12px;
+    line-height: 1.4;
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>geo-scraper</h1>
+    <div class="subtitle">Sign in to continue</div>
+
+    <form id="login-form">
+      <label for="username">Username</label>
+      <input id="username" name="username" autocomplete="username" required>
+
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required>
+
+      <button type="submit">Login</button>
+      <div id="error"></div>
+    </form>
+
+    <div class="hint">
+      If this is a fresh setup, default users are <code>admin</code> and <code>sales</code>.
+      Your admin can change all passwords in the admin console.
+    </div>
+  </div>
+
+<script>
+  async function checkCurrentSession() {
+    try {
+      const res = await fetch('/api/auth/me');
+      const data = await res.json();
+      if (data.authenticated && data.user) {
+        redirectForRole(data.user.role);
+      }
+    } catch {
+      // Ignore network errors here; login submit will show a clear error.
+    }
+  }
+
+  function redirectForRole(role) {
+    if (role === 'admin') {
+      window.location.replace('/');
+      return;
+    }
+    window.location.replace('/employee.html');
+  }
+
+  document.getElementById('login-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value;
+    const errorEl = document.getElementById('error');
+    errorEl.textContent = '';
+
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        errorEl.textContent = data.error || 'Login failed';
+        return;
+      }
+
+      redirectForRole(data.user.role);
+    } catch (err) {
+      errorEl.textContent = 'Unable to connect to the server';
+    }
+  });
+
+  checkCurrentSession();
+</script>
+</body>
+</html>

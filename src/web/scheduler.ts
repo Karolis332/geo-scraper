@@ -7,7 +7,6 @@ import { resolve } from 'node:path';
 
 import type { JobDatabase } from './database.js';
 import { runScanJob } from './job-runner.js';
-import { extractDomain } from '../utils/url-utils.js';
 
 let intervalHandle: ReturnType<typeof setInterval> | null = null;
 
@@ -46,12 +45,47 @@ export function startScheduler(db: JobDatabase, intervalMs: number = 60_000): vo
           domain: schedule.domain,
           type: 'scan',
           output_dir: outputDir,
+          created_by: null,
         });
 
         runScanJob(db, jobId, schedule.url, {
           maxPages: schedule.max_pages,
           concurrency: schedule.concurrency,
           outputDir,
+          onProgress: (event) => {
+            db.createActivityLog({
+              actor_user_id: null,
+              actor_username: 'scheduler',
+              actor_role: null,
+              action: 'job.progress',
+              method: 'JOB',
+              path: event.stage,
+              status_code: null,
+              target_type: 'job',
+              target_id: jobId,
+              job_id: jobId,
+              details_json: JSON.stringify(event),
+            });
+          },
+        });
+
+        db.createActivityLog({
+          actor_user_id: null,
+          actor_username: 'scheduler',
+          actor_role: null,
+          action: 'job.scan.created',
+          method: 'SCHEDULER',
+          path: null,
+          status_code: null,
+          target_type: 'job',
+          target_id: jobId,
+          job_id: jobId,
+          details_json: JSON.stringify({
+            scheduleId: schedule.id,
+            domain: schedule.domain,
+            maxPages: schedule.max_pages,
+            concurrency: schedule.concurrency,
+          }),
         });
 
         const nextRunAt = calculateNextRun(schedule.frequency);

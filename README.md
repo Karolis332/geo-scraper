@@ -37,6 +37,36 @@ node dist/cli.js https://example.com
 npm run dev -- https://example.com
 ```
 
+## Web Dashboard (Auth + Sales Workflow)
+
+```bash
+# Build first
+npm run build
+
+# Start web UI
+node dist/cli.js web --host 0.0.0.0 --port 4173
+```
+
+Login page: `http://localhost:4173/login.html`
+
+Default bootstrap users (first run only):
+- `admin` / `admin12345`
+- `sales` / `sales12345`
+
+Override default passwords with environment variables:
+- `GEO_ADMIN_PASSWORD`
+- `GEO_SALES_PASSWORD`
+
+### Sales workflow
+- Sales users can open `/employee.html`, enter a domain, and start a scan with progress tracking.
+- Domains scanned by a sales user are automatically added to that user's allowed domain list.
+- Sales playbooks only show domains allowed for that logged-in sales user.
+
+### Shipped + weekly diagnostics workflow
+- In admin dashboard, open a completed scan and click **Mark as Shipped**.
+- This creates/enables a weekly diagnostics schedule for that domain.
+- Diagnostics view shows trend confidence and recommended next changes from post-ship data.
+
 ## CLI Options
 
 ```
