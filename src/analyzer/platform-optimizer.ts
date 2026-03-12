@@ -13,7 +13,7 @@ import type { AuditItem } from './audits/types.js';
 import type { BrandMentionResult } from './brand-scanner.js';
 
 export interface PlatformReadiness {
-  platform: 'google_ai_overviews' | 'chatgpt' | 'perplexity' | 'gemini';
+  platform: 'google_ai_overviews' | 'chatgpt' | 'perplexity' | 'gemini' | 'bing_copilot';
   displayName: string;
   score: number;        // 0-100
   grade: string;
@@ -286,6 +286,73 @@ function scoreGemini(items: AuditItem[], crawlResult: SiteCrawlResult, brandResu
 }
 
 /**
+ * Score Bing Copilot readiness.
+ * Uses Bing index, Microsoft ecosystem (LinkedIn, GitHub), enterprise content signals.
+ */
+function scoreBingCopilot(items: AuditItem[], crawlResult: SiteCrawlResult, brandResult?: BrandMentionResult): PlatformReadiness {
+  const strengths: string[] = [];
+  const weaknesses: string[] = [];
+  const recommendations: string[] = [];
+
+  // Bing index signals (30%)
+  const indexScore = getItemPct(items, 'Search Engine Indexing') ?? 0;
+  const hasBing = crawlResult.pages.some(p => p.meta.bingVerification);
+  const bingBonus = hasBing ? 25 : 0;
+  if (hasBing) strengths.push('Bing Webmaster Tools verified');
+  else { weaknesses.push('No Bing Webmaster verification'); recommendations.push('Add Bing Webmaster Tools verification — Copilot relies on Bing index'); }
+
+  // Entity recognition (20%)
+  const orgScore = getItemPct(items, 'Organization Schema Completeness') ?? 0;
+  const sdScore = getItemPct(items, 'Structured Data (JSON-LD)') ?? 0;
+  const entityScore = (orgScore + sdScore) / 2;
+  if (entityScore >= 60) strengths.push('Strong entity signals for Bing Knowledge Graph');
+  else { weaknesses.push('Weak entity recognition'); recommendations.push('Add complete Organization schema with sameAs links'); }
+
+  // LinkedIn presence (20%)
+  let linkedinScore = 0;
+  if (brandResult) {
+    const li = brandResult.platforms.find(p => p.platform === 'linkedin');
+    linkedinScore = li?.score ?? 0;
+  }
+  const hasLinkedIn = crawlResult.siteIdentity.socialLinks.some(s => s.url.includes('linkedin.com'));
+  if (hasLinkedIn && linkedinScore < 30) linkedinScore = 30;
+  if (linkedinScore >= 50) strengths.push('LinkedIn presence established');
+  else { weaknesses.push('No LinkedIn presence'); recommendations.push('Create company LinkedIn page — Copilot weights Microsoft ecosystem signals (LinkedIn, GitHub)'); }
+
+  // Content clarity (15%)
+  const metaScore = getItemPct(items, 'Meta Descriptions') ?? 0;
+  const headingScore = getItemPct(items, 'Heading Hierarchy') ?? 0;
+  const clarityScore = (metaScore + headingScore) / 2;
+  if (clarityScore >= 60) strengths.push('Clear content with proper meta descriptions');
+  else { weaknesses.push('Content clarity needs improvement'); recommendations.push('Write clear, professional meta descriptions and use proper heading hierarchy'); }
+
+  // Authority signals (15%)
+  const authorScore = getItemPct(items, 'Author & Expertise Signals') ?? 0;
+  const trustScore = getItemPct(items, 'Trust Signals') ?? 0;
+  const authorityScore = (authorScore + trustScore) / 2;
+  if (authorityScore >= 50) strengths.push('Professional authority signals present');
+  else { weaknesses.push('Missing authority signals'); recommendations.push('Add professional credentials, company info, and author attribution'); }
+
+  const score = Math.round(
+    Math.min(100, indexScore + bingBonus) * 0.30 +
+    entityScore * 0.20 +
+    linkedinScore * 0.20 +
+    clarityScore * 0.15 +
+    authorityScore * 0.15
+  );
+
+  return {
+    platform: 'bing_copilot',
+    displayName: 'Bing Copilot',
+    score,
+    grade: scoreToGrade(score),
+    strengths: strengths.slice(0, 3),
+    weaknesses: weaknesses.slice(0, 3),
+    recommendations: recommendations.slice(0, 3),
+  };
+}
+
+/**
  * Analyze platform-specific readiness across all major AI search engines.
  */
 export function analyzePlatformReadiness(
@@ -298,6 +365,7 @@ export function analyzePlatformReadiness(
     scoreChatGPT(audit.items, crawlResult),
     scorePerplexity(audit.items, crawlResult, brandResult),
     scoreGemini(audit.items, crawlResult, brandResult),
+    scoreBingCopilot(audit.items, crawlResult, brandResult),
   ];
 
   const sorted = [...platforms].sort((a, b) => b.score - a.score);

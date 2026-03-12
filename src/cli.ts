@@ -223,12 +223,18 @@ async function runScan(rawUrl: string, opts: Record<string, unknown>): Promise<v
     `GEO Score: ${chalk[gradeColor].bold(`${audit.overallScore}/100`)} (Grade: ${chalk[gradeColor].bold(audit.grade)})`
   );
 
-  // Step 2.5: Platform Optimization & Citability Analysis
+  // Step 2.5: Platform Optimization, Citability, AI Content Detection, Schema Templates
   const { analyzePlatformReadiness } = await import('./analyzer/platform-optimizer.js');
   const platformResult = analyzePlatformReadiness(audit, crawlResult, brandResult);
 
   const { scoreSiteCitability } = await import('./analyzer/citability-scorer.js');
   const citabilityResult = scoreSiteCitability(crawlResult.pages);
+
+  const { detectSiteAIContent } = await import('./analyzer/ai-content-detector.js');
+  const aiContentResult = detectSiteAIContent(crawlResult.pages);
+
+  const { generateSchemaTemplates } = await import('./generators/schema-templates.js');
+  const schemaResult = generateSchemaTemplates(crawlResult);
 
   if (options.auditOnly) {
     printAuditSummary(audit, platformResult, citabilityResult);
@@ -294,6 +300,26 @@ async function runScan(rawUrl: string, opts: Record<string, unknown>): Promise<v
   const projected = generateProjectedAudit(audit);
   files.push({ path: 'comparison-report.html', content: generateComparisonHtml(audit, projected, crawlResult) });
 
+  // Schema templates
+  if (schemaResult.templates.length > 0) {
+    await mkdir(join(options.outputDir, 'schema-templates'), { recursive: true });
+    for (const t of schemaResult.templates) {
+      files.push({
+        path: join('schema-templates', t.filename),
+        content: JSON.stringify(t.schema, null, 2) + '\n',
+      });
+    }
+  }
+
+  // Client report (markdown)
+  const { generateClientReport } = await import('./generators/client-report.js');
+  files.push({ path: 'client-report.md', content: generateClientReport({
+    audit, crawlResult,
+    eeatScore: audit.subScores.eeatScore,
+    citabilityResult, platformResult, brandResult,
+    aiContentResult, schemaResult,
+  }) });
+
   // Write all files
   let written = 0;
   for (const file of files) {
@@ -319,8 +345,12 @@ async function runScan(rawUrl: string, opts: Record<string, unknown>): Promise<v
 
   const sdCount = structuredData.perPage.size + 1;
   console.log(`    ${chalk.green('+')} structured-data/ (${sdCount} files)`);
+  if (schemaResult.templates.length > 0) {
+    console.log(`    ${chalk.green('+')} schema-templates/ (${schemaResult.templates.length} files)`);
+  }
   console.log(`    ${chalk.green('+')} audit-report.html`);
   console.log(`    ${chalk.green('+')} comparison-report.html`);
+  console.log(`    ${chalk.green('+')} client-report.md`);
   console.log(`    ${chalk.green('+')} summary.json`);
 
   // PDF generation (optional)
@@ -345,11 +375,12 @@ async function runScan(rawUrl: string, opts: Record<string, unknown>): Promise<v
   }
 
   console.log('');
-  printAuditSummary(audit, platformResult, citabilityResult);
+  printAuditSummary(audit, platformResult, citabilityResult, aiContentResult);
 
   console.log('');
   console.log(`  ${chalk.dim('Output directory:')} ${chalk.white(options.outputDir)}`);
   console.log(`  ${chalk.dim('Open report:')}      ${chalk.white(join(options.outputDir, 'audit-report.html'))}`);
+  console.log(`  ${chalk.dim('Client report:')}    ${chalk.white(join(options.outputDir, 'client-report.md'))}`);
   console.log('');
 }
 
@@ -357,6 +388,7 @@ function printAuditSummary(
   audit: import('./analyzer/geo-auditor.js').AuditResult,
   platformResult?: import('./analyzer/platform-optimizer.js').PlatformOptimizationResult,
   citabilityResult?: import('./analyzer/citability-scorer.js').SiteCitabilityResult,
+  aiContentResult?: import('./analyzer/ai-content-detector.js').SiteAIContentResult,
 ): void {
   console.log(chalk.bold('  Audit Summary:'));
 
@@ -413,6 +445,12 @@ function printAuditSummary(
   if (citabilityResult && citabilityResult.totalPassages > 0) {
     const citColor = citabilityResult.siteScore >= 70 ? 'green' : citabilityResult.siteScore >= 40 ? 'yellow' : 'red';
     console.log(`  ${chalk.bold('Citability:')} ${chalk[citColor].bold(`${citabilityResult.siteScore}/100`)} ${chalk.dim(`(${citabilityResult.totalHighCitability}/${citabilityResult.totalPassages} passages highly citable)`)}`);
+  }
+
+  // AI Content Detection
+  if (aiContentResult && aiContentResult.pages.length > 0) {
+    const aiColor = aiContentResult.averageScore >= 60 ? 'red' : aiContentResult.averageScore >= 30 ? 'yellow' : 'green';
+    console.log(`  ${chalk.bold('AI Content Risk:')} ${chalk[aiColor].bold(`${aiContentResult.averageScore}/100`)} ${chalk.dim(`(${aiContentResult.pagesLikelyAI} pages flagged, ${aiContentResult.pagesLikelyHuman} human)`)}`);
   }
 
   // Platform readiness
