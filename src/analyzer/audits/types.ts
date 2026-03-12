@@ -66,6 +66,7 @@ export const SEVERITY_MAP: Record<string, AuditSeverity> = {
   'Twitter Card Tags': 'notice',
   'Breadcrumb Schema': 'notice',
   'hreflang Tags': 'notice',
+  'Brand Authority Score': 'notice',
   // Foundational SEO
   'Title Tags': 'warning',
   'Image Alt Text': 'warning',
@@ -87,7 +88,6 @@ export const SEVERITY_MAP: Record<string, AuditSeverity> = {
   'Temporary Redirects': 'warning',
   'Missing H1 Heading': 'warning',
   'Core Web Vitals': 'warning',
-  'Brand Authority Score': 'notice',
   // Non-scored
   'security.txt': 'info',
   'tdmrep.json': 'info',

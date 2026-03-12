@@ -33,14 +33,16 @@ export function calculateEEAT(
 ): EEATScore {
   const signals: EEATSignal[] = [];
   const { pages, siteIdentity } = crawlResult;
-  const allText = pages.map(p => p.content.bodyText).join(' ');
+  // Test per-page with early exit to avoid building a multi-MB string
+  const anyPageMatches = (pattern: RegExp) => pages.some(p => pattern.test(p.content.bodyText));
+  const getPathname = (url: string) => { try { return new URL(url).pathname.toLowerCase(); } catch { return url.toLowerCase(); } };
 
   // ===== EXPERIENCE (0-25) =====
   let experience = 0;
 
   // First-person experience content (8pts)
   const expPatterns = /\b(?:our experience|we've worked|I've been|we implemented|we tested|we found|in my experience|from our work)\b/i;
-  const hasFirstPerson = expPatterns.test(allText);
+  const hasFirstPerson = anyPageMatches(expPatterns);
   signals.push({ dimension: 'experience', signal: 'First-person experience content', found: hasFirstPerson, contribution: hasFirstPerson ? 8 : 0 });
   if (hasFirstPerson) experience += 8;
 
@@ -56,7 +58,7 @@ export function calculateEEAT(
 
   // Original research indicators (5pts)
   const researchPattern = /\b(?:our research|we surveyed|our findings|our data shows?|we measured|we analyzed|our analysis)\b/i;
-  const hasResearch = researchPattern.test(allText);
+  const hasResearch = anyPageMatches(researchPattern);
   signals.push({ dimension: 'experience', signal: 'Original research indicators', found: hasResearch, contribution: hasResearch ? 5 : 0 });
   if (hasResearch) experience += 5;
 
@@ -95,7 +97,7 @@ export function calculateEEAT(
 
   // Methodology/process pages (4pts)
   const hasMethodology = pages.some(p =>
-    /(?:methodology|process|how.?we.?work|our.?approach|our.?method)/i.test(p.url) ||
+    /(?:methodology|process|how.?we.?work|our.?approach|our.?method)/i.test(getPathname(p.url)) ||
     p.content.headings.some(h => /(?:methodology|our process|how we work|our approach)/i.test(h.text))
   );
   signals.push({ dimension: 'expertise', signal: 'Methodology/process pages', found: hasMethodology, contribution: hasMethodology ? 4 : 0 });
@@ -103,7 +105,7 @@ export function calculateEEAT(
 
   // Credentials patterns (4pts)
   const credPattern = /\b(?:certified|licensed|accredited|PhD|Ph\.D|master'?s|degree|years? of experience|\d+\+?\s*years?)\b/i;
-  const hasCredentials = credPattern.test(allText);
+  const hasCredentials = anyPageMatches(credPattern);
   signals.push({ dimension: 'expertise', signal: 'Credentials/qualifications mentioned', found: hasCredentials, contribution: hasCredentials ? 4 : 0 });
   if (hasCredentials) expertise += 4;
 
@@ -126,13 +128,13 @@ export function calculateEEAT(
 
   // Awards/recognition patterns (5pts)
   const awardPattern = /\b(?:award|recognized|featured in|as seen in|winner|nominated|top \d+|best (?:of|in))\b/i;
-  const hasAwards = awardPattern.test(allText);
+  const hasAwards = anyPageMatches(awardPattern);
   signals.push({ dimension: 'authoritativeness', signal: 'Awards/recognition mentioned', found: hasAwards, contribution: hasAwards ? 5 : 0 });
   if (hasAwards) authoritativeness += 5;
 
   // Media/press page (4pts)
   const hasPress = pages.some(p =>
-    /(?:press|media|news|in.?the.?news|coverage)/i.test(p.url) ||
+    /(?:press|media|news|in.?the.?news|coverage)/i.test(getPathname(p.url)) ||
     p.content.headings.some(h => /(?:press|media|in the news|coverage|featured)/i.test(h.text))
   );
   signals.push({ dimension: 'authoritativeness', signal: 'Press/media page', found: hasPress, contribution: hasPress ? 4 : 0 });
@@ -158,17 +160,17 @@ export function calculateEEAT(
   trustworthiness += contactPts;
 
   // Privacy policy page (4pts)
-  const hasPrivacy = pages.some(p => /(?:privacy|privat)/i.test(p.url));
+  const hasPrivacy = pages.some(p => /(?:privacy|privat)/i.test(getPathname(p.url)));
   signals.push({ dimension: 'trustworthiness', signal: 'Privacy policy page', found: hasPrivacy, contribution: hasPrivacy ? 4 : 0 });
   if (hasPrivacy) trustworthiness += 4;
 
   // Terms page (3pts)
-  const hasTerms = pages.some(p => /(?:terms|conditions|tos|legal)/i.test(p.url));
+  const hasTerms = pages.some(p => /(?:terms|conditions|tos|legal)/i.test(getPathname(p.url)));
   signals.push({ dimension: 'trustworthiness', signal: 'Terms & conditions page', found: hasTerms, contribution: hasTerms ? 3 : 0 });
   if (hasTerms) trustworthiness += 3;
 
   // About page (4pts)
-  const hasAbout = pages.some(p => /(?:about|apie|about.?us)/i.test(p.url));
+  const hasAbout = pages.some(p => /(?:about|apie|about.?us)/i.test(getPathname(p.url)));
   signals.push({ dimension: 'trustworthiness', signal: 'About page', found: hasAbout, contribution: hasAbout ? 4 : 0 });
   if (hasAbout) trustworthiness += 4;
 

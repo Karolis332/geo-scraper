@@ -33,8 +33,8 @@ export async function generatePdfFromHtml(
   try {
     const page = await browser.newPage();
 
-    // Set the HTML content
-    await page.setContent(htmlContent, { waitUntil: 'networkidle' });
+    // Set the HTML content (with timeout to avoid hanging on networkidle)
+    await page.setContent(htmlContent, { waitUntil: 'networkidle', timeout: 15_000 });
 
     // Inject print-specific CSS overrides
     await page.addStyleTag({
@@ -67,11 +67,10 @@ export async function generatePdfFromHtml(
       `,
     });
 
-    // Inject score gauge SVG visualization
+    // Inject score gauge SVG visualization for all grade circles
     await page.evaluate(() => {
-      // Find the grade circle element and enhance it with an SVG gauge
-      const gradeCircle = document.querySelector('.grade-circle');
-      if (gradeCircle) {
+      const gradeCircles = document.querySelectorAll('.grade-circle');
+      gradeCircles.forEach(gradeCircle => {
         const scoreText = gradeCircle.textContent?.trim() || '';
         const scoreMatch = scoreText.match(/(\d+)/);
         const score = scoreMatch ? parseInt(scoreMatch[1], 10) : 0;
@@ -105,7 +104,7 @@ export async function generatePdfFromHtml(
 
         gradeCircle.innerHTML = '';
         gradeCircle.appendChild(svg);
-      }
+      });
     });
 
     // Generate PDF

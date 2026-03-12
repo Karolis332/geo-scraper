@@ -61,7 +61,8 @@ export function createMockAuditResult(overrides: Partial<AuditResult> = {}): Aud
     createMockAuditItem({ name: 'Twitter Card Tags', category: 'ai_discoverability', severity: 'notice' }),
     createMockAuditItem({ name: 'Breadcrumb Schema', category: 'ai_discoverability', severity: 'notice' }),
     createMockAuditItem({ name: 'hreflang Tags', category: 'ai_discoverability', severity: 'notice' }),
-    // Foundational SEO (16)
+    createMockAuditItem({ name: 'Brand Authority Score', category: 'ai_discoverability', severity: 'notice' }),
+    // Foundational SEO (20)
     createMockAuditItem({ name: 'Title Tags', category: 'foundational_seo', severity: 'warning' }),
     createMockAuditItem({ name: 'Image Alt Text', category: 'foundational_seo', severity: 'warning' }),
     createMockAuditItem({ name: 'Internal Linking', category: 'foundational_seo', severity: 'warning' }),
@@ -81,6 +82,7 @@ export function createMockAuditResult(overrides: Partial<AuditResult> = {}): Aud
     createMockAuditItem({ name: 'Broken External Links', category: 'foundational_seo', severity: 'warning' }),
     createMockAuditItem({ name: 'Temporary Redirects', category: 'foundational_seo', severity: 'warning' }),
     createMockAuditItem({ name: 'Missing H1 Heading', category: 'foundational_seo', severity: 'warning' }),
+    createMockAuditItem({ name: 'Core Web Vitals', category: 'foundational_seo', severity: 'warning' }),
     // Non-scored (4)
     createMockAuditItem({ name: 'security.txt', category: 'non_scored', severity: 'info' }),
     createMockAuditItem({ name: 'tdmrep.json', category: 'non_scored', severity: 'info' }),
@@ -96,8 +98,8 @@ export function createMockAuditResult(overrides: Partial<AuditResult> = {}): Aud
     summary: {
       ai_infrastructure: { passed: 0, total: 10 },
       content_quality: { passed: 0, total: 21 },
-      ai_discoverability: { passed: 0, total: 10 },
-      foundational_seo: { passed: 0, total: 19 },
+      ai_discoverability: { passed: 0, total: 11 },
+      foundational_seo: { passed: 0, total: 20 },
       non_scored: { passed: 0, total: 4 },
     },
     issueCounts: { errors: 0, warnings: 0, notices: 0 },

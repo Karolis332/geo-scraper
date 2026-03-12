@@ -131,9 +131,16 @@ function scoreAnswerBlockQuality(text: string, headings: HeadingNode[], url: str
     }
   }
 
-  // Preceding heading is a question (20pts) — check headings for nearby Q patterns
-  const hasQuestionHeading = headings.some(h => /\?$/.test(h.text.trim()));
-  if (hasQuestionHeading) score += 20;
+  // Passage appears to answer a question (20pts)
+  // Check if any question heading text appears as a prefix/topic in this passage
+  const questionHeadings = headings.filter(h => /\?$/.test(h.text.trim()));
+  const answersQuestion = questionHeadings.some(h => {
+    // Extract key terms from question heading and check if passage addresses them
+    const terms = h.text.replace(/[?'"]/g, '').split(/\s+/).filter(w => w.length > 3);
+    const matchCount = terms.filter(t => text.toLowerCase().includes(t.toLowerCase())).length;
+    return terms.length > 0 && matchCount / terms.length >= 0.5;
+  });
+  if (answersQuestion) score += 20;
 
   // Contains a direct answer pattern within first 60 words (10pts)
   const first60 = text.split(/\s+/).slice(0, 60).join(' ');
@@ -232,7 +239,7 @@ function scoreUniquenessSignals(text: string): number {
   score += Math.min(70, matchCount * 20);
 
   // Contains quoted material (shows sourcing) (+15)
-  if (/[""][^""]+[""]/.test(text) || /"[^"]+"/g.test(text)) score += 15;
+  if (/[""][^""]+[""]/.test(text) || /"[^"]+"/.test(text)) score += 15;
 
   // Contains specific brand/product names (capitalized proper nouns) (+15)
   const properNouns = text.match(/\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b/g) ?? [];

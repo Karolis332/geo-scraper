@@ -33,21 +33,13 @@ interface AuditResult {
 }
 
 /**
- * Get an audit item's score by name, defaulting to 0 if not found.
+ * Get an audit item's score as a percentage (0-100), skipping not_applicable items.
+ * Returns null for not_applicable or missing items so callers can exclude them.
  */
-function getItemScore(items: AuditItem[], name: string): number {
+function getItemPct(items: AuditItem[], name: string): number | null {
   const item = items.find(i => i.name === name);
-  if (!item || item.status === 'not_applicable') return 0;
-  return item.score;
-}
-
-function getItemMax(items: AuditItem[], name: string): number {
-  const item = items.find(i => i.name === name);
-  return item?.maxScore ?? 100;
-}
-
-function pct(score: number, max: number): number {
-  return max > 0 ? (score / max) * 100 : 0;
+  if (!item || item.status === 'not_applicable') return null;
+  return item.maxScore > 0 ? (item.score / item.maxScore) * 100 : 0;
 }
 
 function scoreToGrade(score: number): string {
@@ -70,9 +62,9 @@ function scoreGoogleAIO(items: AuditItem[], crawlResult: SiteCrawlResult): Platf
 
   // Title Tags + Meta Descriptions + Internal Linking (30%)
   const seoScore = (
-    pct(getItemScore(items, 'Title Tags'), getItemMax(items, 'Title Tags')) +
-    pct(getItemScore(items, 'Meta Descriptions'), getItemMax(items, 'Meta Descriptions')) +
-    pct(getItemScore(items, 'Internal Linking'), getItemMax(items, 'Internal Linking'))
+    (getItemPct(items, 'Title Tags') ?? 0) +
+    (getItemPct(items, 'Meta Descriptions') ?? 0) +
+    (getItemPct(items, 'Internal Linking') ?? 0)
   ) / 3;
   if (seoScore >= 70) strengths.push('Strong organic SEO foundation');
   else { weaknesses.push('Weak organic SEO signals'); recommendations.push('Improve title tags, meta descriptions, and internal linking — 92% of AIO citations come from top-10 organic results'); }
@@ -93,12 +85,12 @@ function scoreGoogleAIO(items: AuditItem[], crawlResult: SiteCrawlResult): Platf
   else { weaknesses.push('Lacks tables and structured lists'); recommendations.push('Add comparison tables and structured lists — AIO prefers content that can be directly extracted into answer cards'); }
 
   // Structured data (15%)
-  const sdScore = pct(getItemScore(items, 'Structured Data (JSON-LD)'), getItemMax(items, 'Structured Data (JSON-LD)'));
+  const sdScore = getItemPct(items, 'Structured Data (JSON-LD)') ?? 0;
   if (sdScore >= 70) strengths.push('JSON-LD structured data present');
   else { weaknesses.push('Missing or incomplete structured data'); recommendations.push('Add Organization, FAQ, and Article JSON-LD schemas'); }
 
   // Featured snippet readiness (15%)
-  const snippetScore = pct(getItemScore(items, 'Featured Snippet Readiness'), getItemMax(items, 'Featured Snippet Readiness'));
+  const snippetScore = getItemPct(items, 'Featured Snippet Readiness') ?? 0;
   if (snippetScore >= 50) strengths.push('Content optimized for featured snippets');
   else { weaknesses.push('Not optimized for featured snippets'); recommendations.push('Format content for snippets: definition paragraphs, numbered steps, comparison tables'); }
 
@@ -125,33 +117,33 @@ function scoreChatGPT(items: AuditItem[], crawlResult: SiteCrawlResult): Platfor
   const recommendations: string[] = [];
 
   // Bing/search indexing signals (25%)
-  const indexScore = pct(getItemScore(items, 'Search Engine Indexing'), getItemMax(items, 'Search Engine Indexing'));
+  const indexScore = getItemPct(items, 'Search Engine Indexing') ?? 0;
   const hasBing = crawlResult.pages.some(p => p.meta.bingVerification);
   const bingBonus = hasBing ? 20 : 0;
   if (indexScore >= 60 || hasBing) strengths.push('Good search engine indexing signals');
   else { weaknesses.push('Weak search indexing'); recommendations.push('Add Bing Webmaster verification — ChatGPT uses Bing index for web search'); }
 
   // Entity recognition / structured data (25%)
-  const orgScore = pct(getItemScore(items, 'Organization Schema Completeness'), getItemMax(items, 'Organization Schema Completeness'));
-  const sdScore = pct(getItemScore(items, 'Structured Data (JSON-LD)'), getItemMax(items, 'Structured Data (JSON-LD)'));
+  const orgScore = getItemPct(items, 'Organization Schema Completeness') ?? 0;
+  const sdScore = getItemPct(items, 'Structured Data (JSON-LD)') ?? 0;
   const entityScore = (orgScore + sdScore) / 2;
   if (entityScore >= 60) strengths.push('Strong entity recognition signals');
   else { weaknesses.push('Weak entity recognition'); recommendations.push('Add complete Organization schema with sameAs links to Wikipedia, LinkedIn, Crunchbase'); }
 
   // Content quotability (20%)
-  const quotScore = pct(getItemScore(items, 'Content Quotability Score'), getItemMax(items, 'Content Quotability Score'));
+  const quotScore = getItemPct(items, 'Content Quotability Score') ?? 0;
   if (quotScore >= 60) strengths.push('Content is quotable and extractable');
   else { weaknesses.push('Content not optimized for citation extraction'); recommendations.push('Write self-contained paragraphs of 134-167 words that answer questions directly'); }
 
   // E-E-A-T signals (15%)
-  const authorScore = pct(getItemScore(items, 'Author & Expertise Signals'), getItemMax(items, 'Author & Expertise Signals'));
-  const trustScore = pct(getItemScore(items, 'Trust Signals'), getItemMax(items, 'Trust Signals'));
+  const authorScore = getItemPct(items, 'Author & Expertise Signals') ?? 0;
+  const trustScore = getItemPct(items, 'Trust Signals') ?? 0;
   const eeatScore = (authorScore + trustScore) / 2;
   if (eeatScore >= 50) strengths.push('Author and trust signals present');
   else { weaknesses.push('Missing author/trust signals'); recommendations.push('Add author bios, about page, and visible credentials'); }
 
   // Social proof (15%)
-  const socialScore = pct(getItemScore(items, 'Social Proof & Authority'), getItemMax(items, 'Social Proof & Authority'));
+  const socialScore = getItemPct(items, 'Social Proof & Authority') ?? 0;
   if (socialScore >= 50) strengths.push('Good social proof signals');
   else { weaknesses.push('Weak social proof'); recommendations.push('Link to active social media profiles and industry recognition'); }
 
@@ -196,22 +188,22 @@ function scorePerplexity(items: AuditItem[], crawlResult: SiteCrawlResult, brand
   else { weaknesses.push('No Reddit/community presence'); recommendations.push('Build Reddit presence — Perplexity heavily weights Reddit (46.7% of citations come from Reddit)'); }
 
   // Content recency (25%)
-  const freshnessScore = pct(getItemScore(items, 'Content Freshness'), getItemMax(items, 'Content Freshness'));
+  const freshnessScore = getItemPct(items, 'Content Freshness') ?? 0;
   if (freshnessScore >= 60) strengths.push('Content is fresh and recently updated');
   else { weaknesses.push('Content appears dated'); recommendations.push('Add publication and modification dates to all content pages'); }
 
   // Citation quality (20%)
-  const citScore = pct(getItemScore(items, 'Citation Quality'), getItemMax(items, 'Citation Quality'));
+  const citScore = getItemPct(items, 'Citation Quality') ?? 0;
   if (citScore >= 50) strengths.push('Content has quality citations and sources');
   else { weaknesses.push('Content lacks citations and data sources'); recommendations.push('Add specific statistics, source citations, and original data — Perplexity cites 5-15 sources per answer'); }
 
   // Content depth (15%)
-  const depthScore = pct(getItemScore(items, 'Content Structure & Depth'), getItemMax(items, 'Content Structure & Depth'));
+  const depthScore = getItemPct(items, 'Content Structure & Depth') ?? 0;
   if (depthScore >= 60) strengths.push('Deep, comprehensive content');
   else { weaknesses.push('Content lacks depth'); recommendations.push('Create comprehensive, 2000+ word pages on core topics'); }
 
   // FAQ content (10%)
-  const faqScore = pct(getItemScore(items, 'FAQ Content'), getItemMax(items, 'FAQ Content'));
+  const faqScore = getItemPct(items, 'FAQ Content') ?? 0;
   if (faqScore >= 50) strengths.push('FAQ content available');
   else { weaknesses.push('No FAQ content'); recommendations.push('Add FAQ sections with question-based headings'); }
 
@@ -238,14 +230,14 @@ function scoreGemini(items: AuditItem[], crawlResult: SiteCrawlResult, brandResu
   const recommendations: string[] = [];
 
   // Google index signals (25%)
-  const indexScore = pct(getItemScore(items, 'Search Engine Indexing'), getItemMax(items, 'Search Engine Indexing'));
+  const indexScore = getItemPct(items, 'Search Engine Indexing') ?? 0;
   const hasGoogle = crawlResult.pages.some(p => p.meta.googleVerification);
   const googleBonus = hasGoogle ? 15 : 0;
   if (indexScore >= 60 || hasGoogle) strengths.push('Google search indexing verified');
   else { weaknesses.push('Google indexing not verified'); recommendations.push('Add Google Search Console verification and submit sitemap'); }
 
   // Knowledge Graph / entity signals (20%)
-  const orgScore = pct(getItemScore(items, 'Organization Schema Completeness'), getItemMax(items, 'Organization Schema Completeness'));
+  const orgScore = getItemPct(items, 'Organization Schema Completeness') ?? 0;
   if (orgScore >= 60) strengths.push('Organization entity well-defined');
   else { weaknesses.push('Weak Knowledge Graph signals'); recommendations.push('Complete Organization schema with sameAs links to Wikipedia, Google Business Profile, and social media'); }
 
@@ -268,8 +260,8 @@ function scoreGemini(items: AuditItem[], crawlResult: SiteCrawlResult, brandResu
   else { weaknesses.push('Missing local business signals'); recommendations.push('Add address, phone, and Google Business Profile for local AI search visibility'); }
 
   // Content structure (20%)
-  const headingScore = pct(getItemScore(items, 'Heading Hierarchy'), getItemMax(items, 'Heading Hierarchy'));
-  const depthScore = pct(getItemScore(items, 'Content Structure & Depth'), getItemMax(items, 'Content Structure & Depth'));
+  const headingScore = getItemPct(items, 'Heading Hierarchy') ?? 0;
+  const depthScore = getItemPct(items, 'Content Structure & Depth') ?? 0;
   const contentScore = (headingScore + depthScore) / 2;
   if (contentScore >= 60) strengths.push('Well-structured content hierarchy');
   else { weaknesses.push('Poor content structure'); recommendations.push('Use proper heading hierarchy (H1→H2→H3) and structured content blocks'); }

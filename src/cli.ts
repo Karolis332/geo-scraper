@@ -407,7 +407,7 @@ function printAuditSummary(
     const score = item.status === 'not_applicable'
       ? '  N/A'
       : `${String(item.score).padStart(3)}/${item.maxScore}`;
-    const category = item.category.padEnd(8);
+    const category = item.category.padEnd(20);
     console.log(`  ${icon} ${chalk.dim(`[${category}]`)} ${item.name.padEnd(38)} ${score}  ${chalk.dim(item.details)}`);
   }
 

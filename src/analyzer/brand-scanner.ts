@@ -39,9 +39,9 @@ const REQUEST_TIMEOUT = 10_000; // 10s per request
  * Fetch with timeout and error handling.
  */
 async function safeFetch(url: string, options?: RequestInit): Promise<Response | null> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
     const res = await fetch(url, {
       ...options,
       signal: controller.signal,
@@ -50,10 +50,11 @@ async function safeFetch(url: string, options?: RequestInit): Promise<Response |
         ...(options?.headers ?? {}),
       },
     });
-    clearTimeout(timeout);
     return res;
   } catch {
     return null;
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
@@ -101,8 +102,8 @@ async function scanYouTube(brandName: string): Promise<BrandMentionPlatform> {
         result.details = 'Brand has minimal YouTube presence';
       }
 
-      // Check for channel link pattern
-      if (html.includes(`/@${brandName}`) || html.includes(`/channel/`)) {
+      // Check for brand channel link pattern (case-insensitive)
+      if (htmlLower.includes(`/@${brandLower}`)) {
         result.score = Math.min(100, result.score + 20);
       }
     } else {
