@@ -5,8 +5,9 @@
 import type { SiteCrawlResult } from '../../crawler/page-data.js';
 import type { AuditItem } from './types.js';
 import { MAX_AFFECTED_URLS, resolveSeverity } from './types.js';
+import type { BrandMentionResult } from '../brand-scanner.js';
 
-export function auditAiDiscoverability(crawlResult: SiteCrawlResult): AuditItem[] {
+export function auditAiDiscoverability(crawlResult: SiteCrawlResult, brandResult?: BrandMentionResult): AuditItem[] {
   const items: AuditItem[] = [];
 
   items.push(auditServerRendering(crawlResult));
@@ -21,8 +22,42 @@ export function auditAiDiscoverability(crawlResult: SiteCrawlResult): AuditItem[
   items.push(auditBreadcrumbSchema(crawlResult));
   // New Tier 2 checks
   items.push(auditHreflangTags(crawlResult));
+  items.push(auditBrandAuthority(brandResult));
 
   return items;
+}
+
+/** Brand Authority Score — external platform presence (YouTube, Reddit, Wikipedia, LinkedIn) */
+function auditBrandAuthority(brandResult?: BrandMentionResult): AuditItem {
+  if (!brandResult) {
+    return {
+      name: 'Brand Authority Score',
+      category: 'ai_discoverability',
+      score: 0, maxScore: 100, status: 'not_applicable', severity: 'info',
+      details: 'Brand scan not performed (use --brand-scan to enable)',
+      recommendation: 'Run with --brand-scan to check brand presence on YouTube, Reddit, Wikipedia, and LinkedIn',
+    };
+  }
+
+  const score = brandResult.overallScore;
+  const found = brandResult.platforms.filter(p => p.found);
+  const missing = brandResult.platforms.filter(p => !p.found);
+  const status = score >= 60 ? 'pass' as const : score > 0 ? 'partial' as const : 'fail' as const;
+
+  const platformDetails = brandResult.platforms
+    .map(p => `${p.platform}: ${p.found ? p.score + '/100' : 'not found'}`)
+    .join(', ');
+
+  return {
+    name: 'Brand Authority Score',
+    category: 'ai_discoverability',
+    score, maxScore: 100, status,
+    severity: resolveSeverity('Brand Authority Score', status),
+    details: `Brand "${brandResult.brandName}" found on ${found.length}/4 platforms (${platformDetails}). Brand mentions correlate 3x more strongly with AI visibility than backlinks.`,
+    recommendation: missing.length > 0
+      ? `Build presence on: ${missing.map(p => p.platform).join(', ')}. YouTube has the strongest correlation (0.737) with AI citation likelihood.`
+      : 'Strong brand presence across all major platforms',
+  };
 }
 
 function auditServerRendering(crawlResult: SiteCrawlResult): AuditItem {

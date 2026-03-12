@@ -101,7 +101,10 @@ export function createMockAuditResult(overrides: Partial<AuditResult> = {}): Aud
       non_scored: { passed: 0, total: 4 },
     },
     issueCounts: { errors: 0, warnings: 0, notices: 0 },
-    subScores: { aiSearchHealth: 0 },
+    subScores: {
+      aiSearchHealth: 0,
+      eeatScore: { total: 0, experience: 0, expertise: 0, authoritativeness: 0, trustworthiness: 0, signals: [] },
+    },
     ...overrides,
   };
 }

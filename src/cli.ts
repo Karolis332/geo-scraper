@@ -45,6 +45,8 @@ const scanCmd = new Command('scan')
   .option('--allow-training', 'Allow AI training in generated policies (default)', true)
   .option('--deny-training', 'Deny AI training in generated policies', false)
   .option('--contact-email <email>', 'Contact email for security.txt and ai.txt')
+  .option('--brand-scan', 'Scan brand mentions on YouTube, Reddit, Wikipedia, LinkedIn', false)
+  .option('--pdf', 'Also generate PDF versions of reports', false)
   .option('-v, --verbose', 'Verbose output', false)
   .action(async (url: string, opts: Record<string, unknown>) => {
     try {
@@ -132,6 +134,8 @@ program
   .option('--allow-training', 'Allow AI training in generated policies (default)', true)
   .option('--deny-training', 'Deny AI training in generated policies', false)
   .option('--contact-email <email>', 'Contact email for security.txt and ai.txt')
+  .option('--brand-scan', 'Scan brand mentions on YouTube, Reddit, Wikipedia, LinkedIn', false)
+  .option('--pdf', 'Also generate PDF versions of reports', false)
   .option('-v, --verbose', 'Verbose output', false)
   .action(async (url: string | undefined, opts: Record<string, unknown>) => {
     if (url) {
@@ -215,16 +219,40 @@ async function runScan(rawUrl: string, opts: Record<string, unknown>): Promise<v
     console.log('');
   }
 
+  // Step 1.5: Brand Scan (optional)
+  let brandResult: import('./analyzer/brand-scanner.js').BrandMentionResult | undefined;
+  if (opts.brandScan) {
+    const brandSpinner = ora({ text: 'Scanning brand mentions (YouTube, Reddit, Wikipedia, LinkedIn)...', color: 'cyan' }).start();
+    try {
+      const { scanBrandMentions } = await import('./analyzer/brand-scanner.js');
+      brandResult = await scanBrandMentions(crawlResult.siteIdentity, domain);
+      const found = brandResult.platforms.filter(p => p.found).length;
+      const brandColor = brandResult.overallScore >= 50 ? 'green' : brandResult.overallScore >= 25 ? 'yellow' : 'red';
+      brandSpinner.succeed(
+        `Brand Authority: ${chalk[brandColor].bold(`${brandResult.overallScore}/100`)} (found on ${found}/4 platforms)`
+      );
+    } catch (err) {
+      brandSpinner.warn(`Brand scan failed: ${(err as Error).message}`);
+    }
+  }
+
   // Step 2: Audit
   const auditSpinner = ora({ text: 'Auditing GEO compliance...', color: 'cyan' }).start();
-  const audit = auditSite(crawlResult);
+  const audit = auditSite(crawlResult, brandResult);
   const gradeColor = audit.overallScore >= 70 ? 'green' : audit.overallScore >= 40 ? 'yellow' : 'red';
   auditSpinner.succeed(
     `GEO Score: ${chalk[gradeColor].bold(`${audit.overallScore}/100`)} (Grade: ${chalk[gradeColor].bold(audit.grade)})`
   );
 
+  // Step 2.5: Platform Optimization & Citability Analysis
+  const { analyzePlatformReadiness } = await import('./analyzer/platform-optimizer.js');
+  const platformResult = analyzePlatformReadiness(audit, crawlResult, brandResult);
+
+  const { scoreSiteCitability } = await import('./analyzer/citability-scorer.js');
+  const citabilityResult = scoreSiteCitability(crawlResult.pages);
+
   if (options.auditOnly) {
-    printAuditSummary(audit);
+    printAuditSummary(audit, platformResult, citabilityResult);
     return;
   }
 
@@ -311,8 +339,29 @@ async function runScan(rawUrl: string, opts: Record<string, unknown>): Promise<v
   console.log(`    ${chalk.green('+')} comparison-report.html`);
   console.log(`    ${chalk.green('+')} summary.json`);
 
+  // PDF generation (optional)
+  if (opts.pdf) {
+    const pdfSpinner = ora({ text: 'Generating PDF reports...', color: 'cyan' }).start();
+    try {
+      const { generatePdfFromHtml } = await import('./generators/pdf-report.js');
+      const auditHtmlForPdf = files.find(f => f.path === 'audit-report.html')?.content;
+      const compHtmlForPdf = files.find(f => f.path === 'comparison-report.html')?.content;
+      if (auditHtmlForPdf) {
+        await generatePdfFromHtml(auditHtmlForPdf, join(options.outputDir, 'audit-report.pdf'));
+      }
+      if (compHtmlForPdf) {
+        await generatePdfFromHtml(compHtmlForPdf, join(options.outputDir, 'comparison-report.pdf'));
+      }
+      pdfSpinner.succeed('PDF reports generated');
+      console.log(`    ${chalk.green('+')} audit-report.pdf`);
+      console.log(`    ${chalk.green('+')} comparison-report.pdf`);
+    } catch (err) {
+      pdfSpinner.warn(`PDF generation failed: ${(err as Error).message}`);
+    }
+  }
+
   console.log('');
-  printAuditSummary(audit);
+  printAuditSummary(audit, platformResult, citabilityResult);
 
   console.log('');
   console.log(`  ${chalk.dim('Output directory:')} ${chalk.white(options.outputDir)}`);
@@ -320,7 +369,11 @@ async function runScan(rawUrl: string, opts: Record<string, unknown>): Promise<v
   console.log('');
 }
 
-function printAuditSummary(audit: import('./analyzer/geo-auditor.js').AuditResult): void {
+function printAuditSummary(
+  audit: import('./analyzer/geo-auditor.js').AuditResult,
+  platformResult?: import('./analyzer/platform-optimizer.js').PlatformOptimizationResult,
+  citabilityResult?: import('./analyzer/citability-scorer.js').SiteCitabilityResult,
+): void {
   console.log(chalk.bold('  Audit Summary:'));
 
   // Issue counts header
@@ -366,6 +419,27 @@ function printAuditSummary(audit: import('./analyzer/geo-auditor.js').AuditResul
   const aiHealth = audit.subScores.aiSearchHealth;
   const aiColor = aiHealth >= 70 ? 'green' : aiHealth >= 40 ? 'yellow' : 'red';
   console.log(`  ${chalk.bold('AI Search Health:')} ${chalk[aiColor].bold(`${aiHealth}/100`)}`);
+
+  // E-E-A-T sub-score
+  const eeat = audit.subScores.eeatScore;
+  const eeatColor = eeat.total >= 70 ? 'green' : eeat.total >= 40 ? 'yellow' : 'red';
+  console.log(`  ${chalk.bold('E-E-A-T Score:')} ${chalk[eeatColor].bold(`${eeat.total}/100`)} ${chalk.dim(`(E:${eeat.experience} E:${eeat.expertise} A:${eeat.authoritativeness} T:${eeat.trustworthiness})`)}`);
+
+  // Citability score
+  if (citabilityResult && citabilityResult.totalPassages > 0) {
+    const citColor = citabilityResult.siteScore >= 70 ? 'green' : citabilityResult.siteScore >= 40 ? 'yellow' : 'red';
+    console.log(`  ${chalk.bold('Citability:')} ${chalk[citColor].bold(`${citabilityResult.siteScore}/100`)} ${chalk.dim(`(${citabilityResult.totalHighCitability}/${citabilityResult.totalPassages} passages highly citable)`)}`);
+  }
+
+  // Platform readiness
+  if (platformResult) {
+    console.log('');
+    console.log(chalk.bold('  AI Platform Readiness:'));
+    for (const p of platformResult.platforms) {
+      const pColor = p.score >= 70 ? 'green' : p.score >= 40 ? 'yellow' : 'red';
+      console.log(`    ${p.displayName.padEnd(22)} ${chalk[pColor].bold(`${p.score}/100`)} (${p.grade})`);
+    }
+  }
 }
 
 // ============================================================================

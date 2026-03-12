@@ -31,6 +31,7 @@ export function auditFoundationalSeo(crawlResult: SiteCrawlResult): AuditItem[] 
   items.push(auditBrokenExternalLinks(crawlResult));
   items.push(auditTemporaryRedirects(crawlResult));
   items.push(auditMissingH1(crawlResult));
+  items.push(auditCoreWebVitals(crawlResult));
 
   return items;
 }
@@ -147,6 +148,84 @@ function auditImageAltText(crawlResult: SiteCrawlResult): AuditItem {
       ? 'Add descriptive alt text to all images. Alt text helps search engines and AI models understand image content.'
       : 'Good image alt text coverage',
     ...(affectedUrls.length > 0 ? { affectedUrls } : {}),
+  };
+}
+
+/** Core Web Vitals — composite performance check based on available crawl data */
+function auditCoreWebVitals(crawlResult: SiteCrawlResult): AuditItem {
+  const { pages } = crawlResult;
+  if (pages.length === 0) {
+    return {
+      name: 'Core Web Vitals', category: 'foundational_seo',
+      score: 0, maxScore: 100, status: 'not_applicable', severity: 'info',
+      details: 'No pages crawled', recommendation: 'Crawl pages to assess performance',
+    };
+  }
+
+  let totalScore = 0;
+  const issues: string[] = [];
+
+  // Page load time (30pts) — based on median response time
+  const responseTimes = pages.map(p => p.responseTimeMs).sort((a, b) => a - b);
+  const medianTime = responseTimes[Math.floor(responseTimes.length / 2)];
+  let loadScore = 0;
+  if (medianTime < 1000) loadScore = 30;
+  else if (medianTime < 2000) loadScore = 20;
+  else if (medianTime < 3000) loadScore = 10;
+  else { issues.push(`Slow median response time: ${Math.round(medianTime)}ms`); }
+  totalScore += loadScore;
+
+  // Performance headers (25pts)
+  let headerScore = 0;
+  const pagesWithCompression = pages.filter(p => {
+    const enc = p.responseHeaders['content-encoding'] || '';
+    return /gzip|br|deflate/i.test(enc);
+  });
+  if (pagesWithCompression.length / pages.length >= 0.8) headerScore += 10;
+  else issues.push('Low compression coverage');
+
+  const pagesWithCache = pages.filter(p => {
+    const cc = p.responseHeaders['cache-control'] || '';
+    return /max-age=\d/.test(cc);
+  });
+  if (pagesWithCache.length / pages.length >= 0.5) headerScore += 10;
+  else issues.push('Missing Cache-Control headers');
+
+  const pagesWithVary = pages.filter(p => !!p.responseHeaders['vary']);
+  if (pagesWithVary.length / pages.length >= 0.3) headerScore += 5;
+  totalScore += headerScore;
+
+  // Page weight (25pts) — based on HTML size
+  const sizes = pages.map(p => p.htmlSizeBytes).sort((a, b) => a - b);
+  const medianSize = sizes[Math.floor(sizes.length / 2)];
+  let sizeScore = 0;
+  if (medianSize < 200_000) sizeScore = 25;
+  else if (medianSize < 500_000) sizeScore = 15;
+  else if (medianSize < 1_000_000) sizeScore = 5;
+  else { issues.push(`Heavy pages: median ${Math.round(medianSize / 1024)}KB`); }
+  totalScore += sizeScore;
+
+  // Script count estimation (20pts) — count <script> tags
+  const scriptCounts = pages.map(p => (p.html.match(/<script[\s>]/gi) || []).length);
+  const medianScripts = scriptCounts.sort((a, b) => a - b)[Math.floor(scriptCounts.length / 2)];
+  let scriptScore = 0;
+  if (medianScripts < 5) scriptScore = 20;
+  else if (medianScripts < 10) scriptScore = 15;
+  else if (medianScripts < 20) scriptScore = 5;
+  else { issues.push(`Heavy JavaScript: median ${medianScripts} scripts per page`); }
+  totalScore += scriptScore;
+
+  const status = totalScore >= 70 ? 'pass' as const : totalScore >= 40 ? 'partial' as const : 'fail' as const;
+
+  return {
+    name: 'Core Web Vitals',
+    category: 'foundational_seo',
+    score: totalScore, maxScore: 100, status,
+    severity: resolveSeverity('Core Web Vitals', status),
+    details: `Performance score: ${totalScore}/100. Median response: ${Math.round(medianTime)}ms, median page size: ${Math.round(medianSize / 1024)}KB, median scripts: ${medianScripts}${issues.length > 0 ? '. Issues: ' + issues.join('; ') : ''}`,
+    recommendation: totalScore < 70
+      ? 'Improve page performance: enable compression (gzip/brotli), set Cache-Control headers, reduce page weight, and minimize JavaScript. AI crawlers have strict timeouts.'
+      : 'Good performance metrics — pages load efficiently for AI crawlers',
   };
 }
 

@@ -86,6 +86,8 @@ export const SEVERITY_MAP: Record<string, AuditSeverity> = {
   'Broken External Links': 'warning',
   'Temporary Redirects': 'warning',
   'Missing H1 Heading': 'warning',
+  'Core Web Vitals': 'warning',
+  'Brand Authority Score': 'notice',
   // Non-scored
   'security.txt': 'info',
   'tdmrep.json': 'info',

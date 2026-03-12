@@ -9,6 +9,9 @@ import { auditContentQuality } from './audits/content-quality.js';
 import { auditAiDiscoverability } from './audits/ai-discoverability.js';
 import { auditFoundationalSeo } from './audits/foundational-seo.js';
 import { auditNonScored } from './audits/non-scored.js';
+import { calculateEEAT } from './eeat-scorer.js';
+import type { EEATScore } from './eeat-scorer.js';
+import type { BrandMentionResult } from './brand-scanner.js';
 
 // Re-export types from audits/types.ts so existing imports keep working
 export type { AuditCategory, AuditItem } from './audits/types.js';
@@ -27,7 +30,7 @@ export interface AuditResult {
     non_scored: { passed: number; total: number };
   };
   issueCounts: { errors: number; warnings: number; notices: number };
-  subScores: { aiSearchHealth: number };
+  subScores: { aiSearchHealth: number; eeatScore: EEATScore };
 }
 
 export const CATEGORY_WEIGHTS: Record<string, number> = {
@@ -38,12 +41,12 @@ export const CATEGORY_WEIGHTS: Record<string, number> = {
   non_scored: 0,
 };
 
-export function auditSite(crawlResult: SiteCrawlResult): AuditResult {
+export function auditSite(crawlResult: SiteCrawlResult, brandResult?: BrandMentionResult): AuditResult {
   // Collect items from all category modules
   const items = [
     ...auditAiInfrastructure(crawlResult),
     ...auditContentQuality(crawlResult),
-    ...auditAiDiscoverability(crawlResult),
+    ...auditAiDiscoverability(crawlResult, brandResult),
     ...auditFoundationalSeo(crawlResult),
     ...auditNonScored(crawlResult.existingGeoFiles),
   ];
@@ -85,6 +88,9 @@ export function auditSite(crawlResult: SiteCrawlResult): AuditResult {
   // Calculate AI Search Health sub-score
   const aiSearchHealth = calculateAiSearchHealth(items);
 
+  // Calculate E-E-A-T sub-score
+  const eeatScore = calculateEEAT(crawlResult, brandResult);
+
   return {
     overallScore,
     maxPossibleScore: 100,
@@ -92,7 +98,7 @@ export function auditSite(crawlResult: SiteCrawlResult): AuditResult {
     items,
     summary,
     issueCounts,
-    subScores: { aiSearchHealth },
+    subScores: { aiSearchHealth, eeatScore },
   };
 }
 
@@ -221,6 +227,8 @@ const EFFORT_MAP: Record<string, 'easy' | 'medium' | 'hard'> = {
   'Temporary Redirects': 'easy',
   'Missing H1 Heading': 'easy',
   'Content Readability': 'hard',
+  'Core Web Vitals': 'hard',
+  'Brand Authority Score': 'hard',
 };
 
 const SEO_IMPACT_MAP: Record<string, 'foundational' | 'high' | 'medium' | 'low'> = {
@@ -280,6 +288,8 @@ const SEO_IMPACT_MAP: Record<string, 'foundational' | 'high' | 'medium' | 'low'>
   'Temporary Redirects': 'medium',
   'Missing H1 Heading': 'high',
   'Content Readability': 'low',
+  'Core Web Vitals': 'high',
+  'Brand Authority Score': 'high',
 };
 
 const TIME_TO_IMPACT_MAP: Record<string, 'immediate' | '2-4 weeks' | '2-6 months'> = {
@@ -339,6 +349,8 @@ const TIME_TO_IMPACT_MAP: Record<string, 'immediate' | '2-4 weeks' | '2-6 months
   'Temporary Redirects': 'immediate',
   'Missing H1 Heading': '2-4 weeks',
   'Content Readability': '2-6 months',
+  'Core Web Vitals': '2-6 months',
+  'Brand Authority Score': '2-6 months',
 };
 
 export function calculatePriorityActions(audit: AuditResult): PriorityAction[] {
