@@ -237,7 +237,7 @@ async function runScan(rawUrl: string, opts: Record<string, unknown>): Promise<v
   const schemaResult = generateSchemaTemplates(crawlResult);
 
   if (options.auditOnly) {
-    printAuditSummary(audit, platformResult, citabilityResult);
+    printAuditSummary(audit, crawlResult, platformResult, citabilityResult);
     return;
   }
 
@@ -375,7 +375,7 @@ async function runScan(rawUrl: string, opts: Record<string, unknown>): Promise<v
   }
 
   console.log('');
-  printAuditSummary(audit, platformResult, citabilityResult, aiContentResult);
+  printAuditSummary(audit, crawlResult, platformResult, citabilityResult, aiContentResult);
 
   console.log('');
   console.log(`  ${chalk.dim('Output directory:')} ${chalk.white(options.outputDir)}`);
@@ -386,6 +386,7 @@ async function runScan(rawUrl: string, opts: Record<string, unknown>): Promise<v
 
 function printAuditSummary(
   audit: import('./analyzer/geo-auditor.js').AuditResult,
+  crawlResult: import('./crawler/page-data.js').SiteCrawlResult,
   platformResult?: import('./analyzer/platform-optimizer.js').PlatformOptimizationResult,
   citabilityResult?: import('./analyzer/citability-scorer.js').SiteCitabilityResult,
   aiContentResult?: import('./analyzer/ai-content-detector.js').SiteAIContentResult,
@@ -451,6 +452,20 @@ function printAuditSummary(
   if (aiContentResult && aiContentResult.pages.length > 0) {
     const aiColor = aiContentResult.averageScore >= 60 ? 'red' : aiContentResult.averageScore >= 30 ? 'yellow' : 'green';
     console.log(`  ${chalk.bold('AI Content Risk:')} ${chalk[aiColor].bold(`${aiContentResult.averageScore}/100`)} ${chalk.dim(`(${aiContentResult.pagesLikelyAI} pages flagged, ${aiContentResult.pagesLikelyHuman} human)`)}`);
+  }
+
+  // Mobile readiness
+  if (crawlResult.mobileProbe) {
+    const mp = crawlResult.mobileProbe;
+    const mColor = !mp.accessible ? 'red' : mp.issues.length === 0 ? 'green' : 'yellow';
+    const parity = mp.accessible ? `${Math.round(mp.contentRatio * 100)}% content parity` : `HTTP ${mp.statusCode}`;
+    const imgInfo = mp.totalImages > 0 ? `, ${mp.responsiveImages}/${mp.totalImages} responsive imgs` : '';
+    console.log(`  ${chalk.bold('Mobile Readiness:')} ${chalk[mColor].bold(mp.accessible ? 'accessible' : 'not accessible')} ${chalk.dim(`(${parity}${imgInfo})`)}`);
+    if (mp.issues.length > 0) {
+      for (const issue of mp.issues.slice(0, 3)) {
+        console.log(`    ${chalk.dim('- ' + issue)}`);
+      }
+    }
   }
 
   // Platform readiness

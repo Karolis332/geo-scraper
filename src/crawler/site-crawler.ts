@@ -14,6 +14,7 @@ import type {
   PageData, SiteCrawlResult, ExistingGeoFiles,
   SiteIdentity, CrawlOptions, FailedPage,
   ExternalLinkCheck, InternalRedirectCheck,
+  MobileProbeResult,
 } from './page-data.js';
 
 // Crawlee bundles its own cheerio version which may differ from ours.
@@ -211,7 +212,12 @@ export async function crawlSite(
   const internalRedirectChecks = await detectInternalRedirects(deduplicatedPages, baseUrl, log);
 
   // Probe compression support (got strips content-encoding after transparent decompression)
-  const compressionEncoding = await probeCompression(baseUrl);
+  // and mobile version in parallel
+  log('Probing mobile version...');
+  const [compressionEncoding, mobileProbe] = await Promise.all([
+    probeCompression(baseUrl),
+    probeMobile(baseUrl, deduplicatedPages[0]),
+  ]);
   if (compressionEncoding) {
     for (const page of deduplicatedPages) {
       if (!page.responseHeaders['content-encoding']) {
@@ -246,6 +252,7 @@ export async function crawlSite(
     },
     externalLinkChecks,
     internalRedirectChecks,
+    mobileProbe: mobileProbe || undefined,
   };
 }
 
@@ -532,6 +539,122 @@ async function probeCompression(baseUrl: string): Promise<string | null> {
     });
     const encoding = response.headers.get('content-encoding') || '';
     return /gzip|br|deflate/i.test(encoding) ? encoding : null;
+  } catch {
+    return null;
+  }
+}
+
+const MOBILE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1';
+
+/** Fetch homepage with mobile UA and compare against desktop version */
+async function probeMobile(baseUrl: string, desktopPage?: PageData): Promise<MobileProbeResult | null> {
+  if (!desktopPage) return null;
+
+  try {
+    const response = await fetch(baseUrl, {
+      headers: {
+        'User-Agent': MOBILE_UA,
+        'Accept': 'text/html',
+      },
+      redirect: 'follow',
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!response.ok) {
+      return {
+        accessible: false,
+        statusCode: response.status,
+        contentDiffers: false,
+        contentRatio: 0,
+        desktopWordCount: desktopPage.content.wordCount,
+        mobileWordCount: 0,
+        hasViewport: false,
+        viewportContent: null,
+        issues: [`Mobile homepage returned HTTP ${response.status}`],
+        responsiveImageRatio: 0,
+        totalImages: 0,
+        responsiveImages: 0,
+      };
+    }
+
+    const html = await response.text();
+    const $ = cheerioLoad(html);
+
+    // Extract mobile word count
+    const bodyText = $('body').text().replace(/\s+/g, ' ').trim();
+    const mobileWordCount = bodyText.split(/\s+/).filter(w => w.length > 0).length;
+
+    // Check viewport
+    const viewportTag = $('meta[name="viewport"]').attr('content') || null;
+    const hasViewport = !!viewportTag;
+
+    // Check responsive images
+    const allImages = $('img');
+    let totalImages = 0;
+    let responsiveImages = 0;
+    allImages.each((_, el) => {
+      totalImages++;
+      const srcset = $(el).attr('srcset');
+      const sizes = $(el).attr('sizes');
+      const parentPicture = $(el).closest('picture').length > 0;
+      if (srcset || sizes || parentPicture) responsiveImages++;
+    });
+
+    // Compare content
+    const desktopWC = desktopPage.content.wordCount;
+    const contentRatio = desktopWC > 0 ? mobileWordCount / desktopWC : 1;
+    const contentDiffers = Math.abs(contentRatio - 1) > 0.15; // >15% difference
+
+    // Detect issues
+    const issues: string[] = [];
+
+    if (!hasViewport) {
+      issues.push('No viewport meta tag in mobile response');
+    } else if (viewportTag) {
+      if (!viewportTag.includes('width=device-width')) {
+        issues.push('Viewport missing width=device-width');
+      }
+      if (/user-scalable\s*=\s*no/i.test(viewportTag)) {
+        issues.push('Viewport disables user scaling (accessibility issue)');
+      }
+      if (/maximum-scale\s*=\s*1/i.test(viewportTag)) {
+        issues.push('Viewport restricts zoom to 1x (accessibility issue)');
+      }
+    }
+
+    if (contentRatio < 0.5) {
+      issues.push(`Mobile version has significantly less content (${mobileWordCount} vs ${desktopWC} words)`);
+    } else if (contentRatio > 1.5) {
+      issues.push(`Mobile version has significantly more content than desktop (${mobileWordCount} vs ${desktopWC} words)`);
+    }
+
+    if (totalImages > 0 && responsiveImages / totalImages < 0.5) {
+      issues.push(`Only ${responsiveImages}/${totalImages} images use responsive srcset/picture`);
+    }
+
+    // Check for touch-unfriendly patterns
+    const smallLinks = $('a').filter((_, el) => {
+      const style = $(el).attr('style') || '';
+      return /font-size:\s*[0-9]px/i.test(style) || /font-size:\s*1[0-1]px/i.test(style);
+    }).length;
+    if (smallLinks > 5) {
+      issues.push(`${smallLinks} links with very small font sizes detected`);
+    }
+
+    return {
+      accessible: true,
+      statusCode: response.status,
+      contentDiffers,
+      contentRatio: Math.round(contentRatio * 100) / 100,
+      desktopWordCount: desktopWC,
+      mobileWordCount,
+      hasViewport,
+      viewportContent: viewportTag,
+      issues,
+      responsiveImageRatio: totalImages > 0 ? Math.round((responsiveImages / totalImages) * 100) / 100 : 1,
+      totalImages,
+      responsiveImages,
+    };
   } catch {
     return null;
   }

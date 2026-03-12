@@ -88,6 +88,8 @@ export const SEVERITY_MAP: Record<string, AuditSeverity> = {
   'Temporary Redirects': 'warning',
   'Missing H1 Heading': 'warning',
   'Core Web Vitals': 'warning',
+  'Mobile Readiness': 'warning',
+  'Responsive Images': 'notice',
   // Non-scored
   'security.txt': 'info',
   'tdmrep.json': 'info',

@@ -149,6 +149,24 @@ export interface FailedPage {
   retries: number;
 }
 
+export interface MobileProbeResult {
+  accessible: boolean;
+  statusCode: number;
+  contentDiffers: boolean;
+  /** Approximate ratio: mobile word count / desktop word count */
+  contentRatio: number;
+  desktopWordCount: number;
+  mobileWordCount: number;
+  hasViewport: boolean;
+  viewportContent: string | null;
+  /** Mobile-specific issues detected */
+  issues: string[];
+  /** Responsive image coverage: images with srcset / total images */
+  responsiveImageRatio: number;
+  totalImages: number;
+  responsiveImages: number;
+}
+
 export interface SiteCrawlResult {
   baseUrl: string;
   domain: string;
@@ -163,6 +181,7 @@ export interface SiteCrawlResult {
   };
   externalLinkChecks: ExternalLinkCheck[];
   internalRedirectChecks: InternalRedirectCheck[];
+  mobileProbe?: MobileProbeResult;
 }
 
 export interface CrawlOptions {

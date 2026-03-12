@@ -32,6 +32,8 @@ export function auditFoundationalSeo(crawlResult: SiteCrawlResult): AuditItem[] 
   items.push(auditTemporaryRedirects(crawlResult));
   items.push(auditMissingH1(crawlResult));
   items.push(auditCoreWebVitals(crawlResult));
+  items.push(auditMobileReadiness(crawlResult));
+  items.push(auditResponsiveImages(crawlResult));
 
   return items;
 }
@@ -147,6 +149,149 @@ function auditImageAltText(crawlResult: SiteCrawlResult): AuditItem {
     recommendation: score < 80
       ? 'Add descriptive alt text to all images. Alt text helps search engines and AI models understand image content.'
       : 'Good image alt text coverage',
+    ...(affectedUrls.length > 0 ? { affectedUrls } : {}),
+  };
+}
+
+function auditMobileReadiness(crawlResult: SiteCrawlResult): AuditItem {
+  const probe = crawlResult.mobileProbe;
+  if (!probe) {
+    return {
+      name: 'Mobile Readiness', category: 'foundational_seo',
+      score: 0, maxScore: 100, status: 'not_applicable', severity: 'info',
+      details: 'Mobile probe not available', recommendation: 'Mobile probe did not run',
+    };
+  }
+
+  if (!probe.accessible) {
+    return {
+      name: 'Mobile Readiness', category: 'foundational_seo',
+      score: 0, maxScore: 100, status: 'fail',
+      severity: 'error',
+      details: `Mobile homepage returned HTTP ${probe.statusCode}`,
+      recommendation: 'Ensure the homepage is accessible to mobile user agents. Some sites block or redirect mobile requests incorrectly.',
+    };
+  }
+
+  let score = 100;
+  const deductions: string[] = [];
+
+  // Viewport quality (30 points)
+  if (!probe.hasViewport) {
+    score -= 30;
+    deductions.push('no viewport meta tag');
+  } else if (probe.viewportContent) {
+    if (!probe.viewportContent.includes('width=device-width')) {
+      score -= 15;
+      deductions.push('viewport missing width=device-width');
+    }
+    if (/user-scalable\s*=\s*no/i.test(probe.viewportContent)) {
+      score -= 10;
+      deductions.push('user scaling disabled');
+    }
+  }
+
+  // Content parity (30 points)
+  if (probe.contentRatio < 0.5) {
+    score -= 30;
+    deductions.push(`mobile has ${Math.round(probe.contentRatio * 100)}% of desktop content`);
+  } else if (probe.contentRatio < 0.85) {
+    score -= 15;
+    deductions.push(`mobile has ${Math.round(probe.contentRatio * 100)}% of desktop content`);
+  }
+
+  // Responsive images (20 points)
+  if (probe.totalImages > 0) {
+    const imgScore = Math.round(probe.responsiveImageRatio * 20);
+    score -= (20 - imgScore);
+    if (probe.responsiveImageRatio < 0.5) {
+      deductions.push(`only ${probe.responsiveImages}/${probe.totalImages} images use responsive srcset`);
+    }
+  }
+
+  // Other issues (20 points)
+  const otherIssues = probe.issues.filter(i =>
+    !i.includes('viewport') && !i.includes('content') && !i.includes('image')
+  );
+  score -= Math.min(20, otherIssues.length * 10);
+  deductions.push(...otherIssues);
+
+  score = Math.max(0, score);
+  const status = score >= 80 ? 'pass' as const : score >= 50 ? 'partial' as const : 'fail' as const;
+
+  const details = [
+    `Mobile accessible: ${probe.accessible ? 'yes' : 'no'}`,
+    `Content parity: ${Math.round(probe.contentRatio * 100)}% (${probe.mobileWordCount} vs ${probe.desktopWordCount} words)`,
+    `Viewport: ${probe.hasViewport ? 'present' : 'missing'}`,
+    probe.totalImages > 0 ? `Responsive images: ${probe.responsiveImages}/${probe.totalImages}` : null,
+    deductions.length > 0 ? `Issues: ${deductions.join(', ')}` : null,
+  ].filter(Boolean).join('. ');
+
+  return {
+    name: 'Mobile Readiness',
+    category: 'foundational_seo',
+    score, maxScore: 100, status,
+    severity: resolveSeverity('Mobile Readiness', status),
+    details,
+    recommendation: score < 80
+      ? 'Ensure mobile and desktop serve equivalent content. Use responsive images (srcset), proper viewport meta tag, and avoid disabling user scaling.'
+      : 'Mobile version is well-configured with good content parity.',
+  };
+}
+
+function auditResponsiveImages(crawlResult: SiteCrawlResult): AuditItem {
+  const { pages } = crawlResult;
+  let totalImages = 0;
+  let responsiveImages = 0;
+  const affectedUrls: string[] = [];
+
+  for (const page of pages) {
+    // Count images from the page HTML using a simple regex since we have the raw HTML
+    const imgTags = page.html.match(/<img[^>]*>/gi) || [];
+    let pageTotal = 0;
+    let pageResponsive = 0;
+
+    for (const tag of imgTags) {
+      pageTotal++;
+      if (/srcset\s*=/.test(tag) || /sizes\s*=/.test(tag)) {
+        pageResponsive++;
+      }
+    }
+
+    // Also check <picture> elements
+    const pictureCount = (page.html.match(/<picture[^>]*>/gi) || []).length;
+    pageResponsive += pictureCount;
+
+    totalImages += pageTotal;
+    responsiveImages += Math.min(pageResponsive, pageTotal);
+
+    if (pageTotal > 0 && pageResponsive / pageTotal < 0.5) {
+      if (affectedUrls.length < MAX_AFFECTED_URLS) affectedUrls.push(page.url);
+    }
+  }
+
+  if (totalImages === 0) {
+    return {
+      name: 'Responsive Images', category: 'foundational_seo',
+      score: 100, maxScore: 100, status: 'pass', severity: 'info',
+      details: 'No images found on crawled pages',
+      recommendation: 'No images to optimize',
+    };
+  }
+
+  const ratio = responsiveImages / totalImages;
+  const score = Math.round(ratio * 100);
+  const status = ratio >= 0.7 ? 'pass' as const : ratio >= 0.3 ? 'partial' as const : 'fail' as const;
+
+  return {
+    name: 'Responsive Images',
+    category: 'foundational_seo',
+    score, maxScore: 100, status,
+    severity: resolveSeverity('Responsive Images', status),
+    details: `${responsiveImages}/${totalImages} images use srcset/picture for responsive delivery`,
+    recommendation: score < 70
+      ? 'Add srcset and sizes attributes to images, or wrap them in <picture> elements. Responsive images improve mobile performance and Core Web Vitals, which AI crawlers factor into content quality.'
+      : 'Good responsive image coverage across the site.',
     ...(affectedUrls.length > 0 ? { affectedUrls } : {}),
   };
 }

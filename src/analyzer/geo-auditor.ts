@@ -229,6 +229,8 @@ const EFFORT_MAP: Record<string, 'easy' | 'medium' | 'hard'> = {
   'Content Readability': 'hard',
   'Core Web Vitals': 'hard',
   'Brand Authority Score': 'hard',
+  'Mobile Readiness': 'medium',
+  'Responsive Images': 'medium',
 };
 
 const SEO_IMPACT_MAP: Record<string, 'foundational' | 'high' | 'medium' | 'low'> = {
@@ -290,6 +292,8 @@ const SEO_IMPACT_MAP: Record<string, 'foundational' | 'high' | 'medium' | 'low'>
   'Content Readability': 'low',
   'Core Web Vitals': 'high',
   'Brand Authority Score': 'high',
+  'Mobile Readiness': 'high',
+  'Responsive Images': 'medium',
 };
 
 const TIME_TO_IMPACT_MAP: Record<string, 'immediate' | '2-4 weeks' | '2-6 months'> = {
@@ -351,6 +355,8 @@ const TIME_TO_IMPACT_MAP: Record<string, 'immediate' | '2-4 weeks' | '2-6 months
   'Content Readability': '2-6 months',
   'Core Web Vitals': '2-6 months',
   'Brand Authority Score': '2-6 months',
+  'Mobile Readiness': '2-4 weeks',
+  'Responsive Images': '2-4 weeks',
 };
 
 export function calculatePriorityActions(audit: AuditResult): PriorityAction[] {
