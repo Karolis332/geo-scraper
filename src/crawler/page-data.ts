@@ -182,6 +182,10 @@ export interface SiteCrawlResult {
   externalLinkChecks: ExternalLinkCheck[];
   internalRedirectChecks: InternalRedirectCheck[];
   mobileProbe?: MobileProbeResult;
+  pageSpeed?: {
+    mobile: import('./pagespeed-probe.js').PageSpeedResult | null;
+    desktop: import('./pagespeed-probe.js').PageSpeedResult | null;
+  };
 }
 
 export interface CrawlOptions {

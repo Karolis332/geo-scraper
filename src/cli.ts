@@ -46,6 +46,7 @@ const scanCmd = new Command('scan')
   .option('--deny-training', 'Deny AI training in generated policies', false)
   .option('--contact-email <email>', 'Contact email for security.txt and ai.txt')
   .option('--brand-scan', 'Scan brand mentions on YouTube, Reddit, Wikipedia, LinkedIn', false)
+  .option('--pagespeed', 'Run Google PageSpeed Insights for real Core Web Vitals (set PSI_API_KEY env var)', false)
   .option('--pdf', 'Also generate PDF versions of reports', false)
   .option('-v, --verbose', 'Verbose output', false)
   .action(async (url: string, opts: Record<string, unknown>) => {
@@ -212,6 +213,31 @@ async function runScan(rawUrl: string, opts: Record<string, unknown>): Promise<v
       );
     } catch (err) {
       brandSpinner.warn(`Brand scan failed: ${(err as Error).message}`);
+    }
+  }
+
+  // Step 1.6: PageSpeed Insights (optional)
+  if (opts.pagespeed) {
+    const psiSpinner = ora({ text: 'Running Google PageSpeed Insights (mobile + desktop)...', color: 'cyan' }).start();
+    try {
+      const { probePageSpeed } = await import('./crawler/pagespeed-probe.js');
+      const psiKey = process.env.PSI_API_KEY || null;
+      const [mobile, desktop] = await Promise.all([
+        probePageSpeed(url, 'mobile', psiKey),
+        probePageSpeed(url, 'desktop', psiKey),
+      ]);
+      crawlResult.pageSpeed = { mobile, desktop };
+      if (mobile) {
+        const mColor = mobile.performanceScore >= 90 ? 'green' : mobile.performanceScore >= 50 ? 'yellow' : 'red';
+        const dScore = desktop ? ` | Desktop: ${desktop.performanceScore}/100` : '';
+        psiSpinner.succeed(
+          `PageSpeed: Mobile ${chalk[mColor].bold(`${mobile.performanceScore}/100`)}${dScore} — LCP: ${mobile.displayValues.lcp}, TBT: ${mobile.displayValues.tbt}`
+        );
+      } else {
+        psiSpinner.warn('PageSpeed Insights returned no data (API quota may be exhausted, set PSI_API_KEY env var)');
+      }
+    } catch (err) {
+      psiSpinner.warn(`PageSpeed probe failed: ${(err as Error).message}`);
     }
   }
 
@@ -452,6 +478,21 @@ function printAuditSummary(
   if (aiContentResult && aiContentResult.pages.length > 0) {
     const aiColor = aiContentResult.averageScore >= 60 ? 'red' : aiContentResult.averageScore >= 30 ? 'yellow' : 'green';
     console.log(`  ${chalk.bold('AI Content Risk:')} ${chalk[aiColor].bold(`${aiContentResult.averageScore}/100`)} ${chalk.dim(`(${aiContentResult.pagesLikelyAI} pages flagged, ${aiContentResult.pagesLikelyHuman} human)`)}`);
+  }
+
+  // PageSpeed Insights
+  if (crawlResult.pageSpeed?.mobile) {
+    const psi = crawlResult.pageSpeed.mobile;
+    const pColor = psi.performanceScore >= 90 ? 'green' : psi.performanceScore >= 50 ? 'yellow' : 'red';
+    const desktop = crawlResult.pageSpeed.desktop;
+    const dInfo = desktop ? ` | Desktop: ${desktop.performanceScore}/100` : '';
+    console.log(`  ${chalk.bold('PageSpeed (Lighthouse):')} Mobile ${chalk[pColor].bold(`${psi.performanceScore}/100`)}${dInfo}`);
+    console.log(`    ${chalk.dim(`FCP: ${psi.displayValues.fcp} | LCP: ${psi.displayValues.lcp} | TBT: ${psi.displayValues.tbt} | CLS: ${psi.displayValues.cls}`)}`);
+    if (psi.opportunities.length > 0) {
+      for (const opp of psi.opportunities.slice(0, 3)) {
+        console.log(`    ${chalk.dim('- ' + opp.title + ': ' + opp.savings)}`);
+      }
+    }
   }
 
   // Mobile readiness

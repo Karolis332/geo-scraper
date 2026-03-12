@@ -307,6 +307,38 @@ function auditCoreWebVitals(crawlResult: SiteCrawlResult): AuditItem {
     };
   }
 
+  // If real PageSpeed Insights data is available, use it
+  const psi = crawlResult.pageSpeed?.mobile;
+  if (psi) {
+    const score = psi.performanceScore;
+    const status = score >= 70 ? 'pass' as const : score >= 40 ? 'partial' as const : 'fail' as const;
+
+    const issues: string[] = [];
+    if (psi.metrics.lcp > 2500) issues.push(`LCP: ${psi.displayValues.lcp} (should be <2.5s)`);
+    if (psi.metrics.tbt > 200) issues.push(`TBT: ${psi.displayValues.tbt} (should be <200ms)`);
+    if (psi.metrics.cls > 0.1) issues.push(`CLS: ${psi.displayValues.cls} (should be <0.1)`);
+    if (psi.metrics.fcp > 1800) issues.push(`FCP: ${psi.displayValues.fcp} (should be <1.8s)`);
+
+    const opps = psi.opportunities.length > 0
+      ? '. Top opportunities: ' + psi.opportunities.map(o => `${o.title} (${o.savings})`).join(', ')
+      : '';
+
+    const desktop = crawlResult.pageSpeed?.desktop;
+    const desktopInfo = desktop ? ` | Desktop: ${desktop.performanceScore}/100` : '';
+
+    return {
+      name: 'Core Web Vitals',
+      category: 'foundational_seo',
+      score, maxScore: 100, status,
+      severity: resolveSeverity('Core Web Vitals', status),
+      details: `Lighthouse mobile: ${score}/100${desktopInfo}. FCP: ${psi.displayValues.fcp}, LCP: ${psi.displayValues.lcp}, TBT: ${psi.displayValues.tbt}, CLS: ${psi.displayValues.cls}${issues.length > 0 ? '. Issues: ' + issues.join('; ') : ''}${opps}`,
+      recommendation: score < 70
+        ? 'Improve Core Web Vitals: reduce LCP (optimize images, fonts), minimize TBT (reduce JavaScript), and lower CLS (set explicit dimensions on media). These directly affect AI crawler experience.'
+        : 'Good Core Web Vitals — pages perform well for users and AI crawlers.',
+    };
+  }
+
+  // Fallback: synthetic estimation from crawl data
   let totalScore = 0;
   const issues: string[] = [];
 
@@ -367,7 +399,7 @@ function auditCoreWebVitals(crawlResult: SiteCrawlResult): AuditItem {
     category: 'foundational_seo',
     score: totalScore, maxScore: 100, status,
     severity: resolveSeverity('Core Web Vitals', status),
-    details: `Performance score: ${totalScore}/100. Median response: ${Math.round(medianTime)}ms, median page size: ${Math.round(medianSize / 1024)}KB, median scripts: ${medianScripts}${issues.length > 0 ? '. Issues: ' + issues.join('; ') : ''}`,
+    details: `Performance score: ${totalScore}/100 (estimated). Median response: ${Math.round(medianTime)}ms, median page size: ${Math.round(medianSize / 1024)}KB, median scripts: ${medianScripts}${issues.length > 0 ? '. Issues: ' + issues.join('; ') : ''}. Use --pagespeed for real Lighthouse scores.`,
     recommendation: totalScore < 70
       ? 'Improve page performance: enable compression (gzip/brotli), set Cache-Control headers, reduce page weight, and minimize JavaScript. AI crawlers have strict timeouts.'
       : 'Good performance metrics — pages load efficiently for AI crawlers',
