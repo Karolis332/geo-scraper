@@ -6,6 +6,17 @@ import type { AuditResult, AuditItem, PriorityAction } from '../analyzer/geo-aud
 import { calculatePriorityActions } from '../analyzer/geo-auditor.js';
 import { calculateGeoServiceScore } from '../analyzer/geo-service-score.js';
 import type { SiteCrawlResult } from '../crawler/page-data.js';
+import type { EEATScore } from '../analyzer/eeat-scorer.js';
+import type { SiteCitabilityResult } from '../analyzer/citability-scorer.js';
+import type { PlatformOptimizationResult } from '../analyzer/platform-optimizer.js';
+import type { BrandMentionResult } from '../analyzer/brand-scanner.js';
+
+export interface ReportExtras {
+  eeatScore?: EEATScore;
+  citabilityResult?: SiteCitabilityResult;
+  platformResult?: PlatformOptimizationResult;
+  brandResult?: BrandMentionResult;
+}
 
 interface ReportStrings {
   title: string;
@@ -870,6 +881,7 @@ function renderAffectedUrls(item: AuditItem, index: number, s: ReportStrings): s
 export function generateAuditReportHtml(
   audit: AuditResult,
   crawlResult: SiteCrawlResult,
+  extras?: ReportExtras,
 ): string {
   const { domain, baseUrl, crawlStats, siteIdentity, pages } = crawlResult;
   const siteName = siteIdentity.name || domain;
@@ -1231,6 +1243,111 @@ export function generateAuditReportHtml(
     .effort-easy { background: rgba(52,211,153,0.15); color: var(--green); }
     .effort-medium { background: rgba(251,191,36,0.15); color: var(--yellow); }
     .effort-hard { background: rgba(248,113,113,0.15); color: var(--red); }
+    /* === Analysis sections (E-E-A-T, Citability, Platform, Brand) === */
+    .analysis-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1.25rem;
+      margin: 1.5rem 0;
+    }
+    .analysis-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: var(--shadow-sm);
+      transition: border-color 0.2s ease;
+    }
+    .analysis-card:hover { border-color: var(--border-strong); }
+    .analysis-card h3 { font-size: 1rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; }
+    .analysis-card .card-score {
+      font-size: 2rem;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      margin-bottom: 0.5rem;
+    }
+    .analysis-card .card-subtitle {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+    }
+    .dim-bar {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.6rem;
+    }
+    .dim-bar .dim-label {
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      min-width: 130px;
+    }
+    .dim-bar .dim-track {
+      flex: 1;
+      height: 8px;
+      background: var(--surface2);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .dim-bar .dim-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.3s ease;
+    }
+    .dim-bar .dim-value {
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      min-width: 35px;
+      text-align: right;
+    }
+    .platform-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.75rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .platform-row:last-child { border-bottom: none; }
+    .platform-name { font-weight: 600; font-size: 0.9rem; }
+    .platform-grade {
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 2px 10px;
+      border-radius: 10px;
+    }
+    .platform-detail {
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      margin-top: 0.25rem;
+    }
+    .platform-detail .strength { color: var(--green); }
+    .platform-detail .weakness { color: var(--yellow); }
+    .brand-platform {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.6rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .brand-platform:last-child { border-bottom: none; }
+    .brand-status { font-size: 0.8rem; font-weight: 500; }
+    .brand-found { color: var(--green); }
+    .brand-missing { color: var(--text-muted); }
+    .signal-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.5rem;
+      margin-top: 0.75rem;
+    }
+    .signal-item {
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+    .signal-found { color: var(--green); }
+    .signal-missing { color: var(--text-muted); }
     .footer {
       margin-top: 3rem;
       padding-top: 1.5rem;
@@ -1343,6 +1460,8 @@ ${renderCategory(s.ai_discoverability, 'ai_discoverability', audit.items, lang)}
 ${renderCategory(s.foundational_seo, 'foundational_seo', audit.items, lang)}
 ${renderCategory(s.non_scored, 'non_scored', audit.items, lang)}
 
+${renderAnalysisSections(extras, lang)}
+
 ${renderPriorityFixes(audit, lang)}
 
 ${renderTimeline(s)}
@@ -1435,6 +1554,148 @@ if (new URLSearchParams(location.search).get('export') === 'csv') exportCsv();
 </script>
 </body>
 </html>`;
+}
+
+function scoreColor(score: number): string {
+  if (score >= 80) return '#34d399';
+  if (score >= 60) return '#60a5fa';
+  if (score >= 40) return '#fbbf24';
+  return '#f87171';
+}
+
+function renderDimBar(label: string, value: number, max: number): string {
+  const pct = max > 0 ? Math.round((value / max) * 100) : 0;
+  return `<div class="dim-bar">
+    <span class="dim-label">${label}</span>
+    <div class="dim-track"><div class="dim-fill" style="width:${pct}%;background:${scoreColor(pct)}"></div></div>
+    <span class="dim-value">${value}/${max}</span>
+  </div>`;
+}
+
+function renderEEATCard(eeat: EEATScore, lang: string): string {
+  const title = lang === 'lt' ? 'E-E-A-T Analizė' : 'E-E-A-T Analysis';
+  const subtitle = lang === 'lt' ? 'Patirtis, Kompetencija, Autoritetingumas, Pasitikėjimas' : 'Experience, Expertise, Authoritativeness, Trustworthiness';
+  const foundSignals = eeat.signals.filter(s => s.found);
+  const missedSignals = eeat.signals.filter(s => !s.found);
+
+  return `<div class="analysis-card">
+    <h3><span style="font-size:1.2rem">🏆</span> ${title}</h3>
+    <div class="card-score" style="color:${scoreColor(eeat.total)}">${eeat.total}<span style="font-size:1rem;color:var(--text-muted)">/100</span></div>
+    <div class="card-subtitle">${subtitle}</div>
+    ${renderDimBar(lang === 'lt' ? 'Patirtis' : 'Experience', eeat.experience, 25)}
+    ${renderDimBar(lang === 'lt' ? 'Kompetencija' : 'Expertise', eeat.expertise, 25)}
+    ${renderDimBar(lang === 'lt' ? 'Autoritetingumas' : 'Authoritativeness', eeat.authoritativeness, 25)}
+    ${renderDimBar(lang === 'lt' ? 'Pasitikėjimas' : 'Trustworthiness', eeat.trustworthiness, 25)}
+    <div class="signal-grid" style="margin-top:1rem">
+      ${foundSignals.slice(0, 6).map(s => `<div class="signal-item signal-found">✓ ${s.signal}</div>`).join('\n      ')}
+      ${missedSignals.slice(0, 4).map(s => `<div class="signal-item signal-missing">✗ ${s.signal}</div>`).join('\n      ')}
+    </div>
+  </div>`;
+}
+
+function renderCitabilityCard(cit: SiteCitabilityResult, lang: string): string {
+  const title = lang === 'lt' ? 'AI Citavimo Tikimybė' : 'AI Citability';
+  const subtitle = lang === 'lt' ? 'Kaip tikėtina, kad AI varikliai cituos jūsų turinį' : 'How likely AI engines will cite your content';
+
+  return `<div class="analysis-card">
+    <h3><span style="font-size:1.2rem">📝</span> ${title}</h3>
+    <div class="card-score" style="color:${scoreColor(cit.siteScore)}">${cit.siteScore}<span style="font-size:1rem;color:var(--text-muted)">/100</span></div>
+    <div class="card-subtitle">${subtitle}</div>
+    <div style="display:flex;gap:1.5rem;margin-bottom:1rem">
+      <div style="text-align:center">
+        <div style="font-size:1.5rem;font-weight:700;color:var(--green)">${cit.totalHighCitability}</div>
+        <div style="font-size:0.7rem;color:var(--text-muted)">${lang === 'lt' ? 'Aukštos citab.' : 'High citability'}</div>
+      </div>
+      <div style="text-align:center">
+        <div style="font-size:1.5rem;font-weight:700;color:var(--text-dim)">${cit.totalPassages}</div>
+        <div style="font-size:0.7rem;color:var(--text-muted)">${lang === 'lt' ? 'Iš viso pastraipų' : 'Total passages'}</div>
+      </div>
+      <div style="text-align:center">
+        <div style="font-size:1.5rem;font-weight:700;color:var(--blue)">${cit.pageScores.length}</div>
+        <div style="font-size:0.7rem;color:var(--text-muted)">${lang === 'lt' ? 'Puslapiai' : 'Pages analyzed'}</div>
+      </div>
+    </div>
+    ${cit.pageScores.length > 0 ? (() => {
+      const avg = cit.pageScores[0]?.dimensions;
+      if (!avg) return '';
+      return `
+    ${renderDimBar(lang === 'lt' ? 'Atsakymo kokybė' : 'Answer quality', avg.answerBlockQuality, 100)}
+    ${renderDimBar(lang === 'lt' ? 'Savarankiškumas' : 'Self-containment', avg.selfContainment, 100)}
+    ${renderDimBar(lang === 'lt' ? 'Skaitomumas' : 'Readability', avg.structuralReadability, 100)}
+    ${renderDimBar(lang === 'lt' ? 'Statistiniai duomenys' : 'Statistical density', avg.statisticalDensity, 100)}
+    ${renderDimBar(lang === 'lt' ? 'Unikalumo signalai' : 'Uniqueness signals', avg.uniquenessSignals, 100)}`;
+    })() : ''}
+  </div>`;
+}
+
+function renderPlatformCard(plat: PlatformOptimizationResult, lang: string): string {
+  const title = lang === 'lt' ? 'Platformų Parengtis' : 'AI Platform Readiness';
+  const subtitle = lang === 'lt' ? 'Parengtis kiekvienai DI paieškos platformai' : 'Readiness for each AI search platform';
+
+  return `<div class="analysis-card" style="grid-column: span 2">
+    <h3><span style="font-size:1.2rem">🤖</span> ${title}</h3>
+    <div class="card-subtitle">${subtitle}</div>
+    ${plat.platforms.map(p => {
+      const gradeColor = scoreColor(p.score);
+      const bgColor = p.score >= 80 ? 'rgba(52,211,153,0.12)' : p.score >= 60 ? 'rgba(96,165,250,0.12)' : p.score >= 40 ? 'rgba(251,191,36,0.12)' : 'rgba(248,113,113,0.12)';
+      return `<div class="platform-row">
+        <div style="flex:1">
+          <div class="platform-name">${p.displayName}</div>
+          <div class="platform-detail">
+            ${p.strengths.slice(0, 2).map(s => `<span class="strength">✓ ${s}</span>`).join(' · ')}
+            ${p.weaknesses.length > 0 ? ` · ${p.weaknesses.slice(0, 1).map(w => `<span class="weakness">✗ ${w}</span>`).join('')}` : ''}
+          </div>
+        </div>
+        <div style="text-align:right">
+          <span class="platform-grade" style="background:${bgColor};color:${gradeColor}">${p.grade} · ${p.score}/100</span>
+        </div>
+      </div>`;
+    }).join('\n    ')}
+    <div style="margin-top:0.75rem;font-size:0.8rem;color:var(--text-muted)">
+      ${lang === 'lt' ? 'Stipriausia' : 'Strongest'}: <strong style="color:var(--green)">${plat.bestPlatform}</strong> ·
+      ${lang === 'lt' ? 'Silpniausia' : 'Weakest'}: <strong style="color:var(--yellow)">${plat.worstPlatform}</strong>
+    </div>
+  </div>`;
+}
+
+function renderBrandCard(brand: BrandMentionResult, lang: string): string {
+  const title = lang === 'lt' ? 'Prekės ženklo autoritetas' : 'Brand Authority';
+  const subtitle = lang === 'lt' ? 'Prekės ženklo matomumas išorinėse platformose' : 'Brand visibility across external platforms';
+  const platformIcons: Record<string, string> = { youtube: '▶', reddit: '💬', wikipedia: '📖', linkedin: '💼' };
+
+  return `<div class="analysis-card">
+    <h3><span style="font-size:1.2rem">🌐</span> ${title}</h3>
+    <div class="card-score" style="color:${scoreColor(brand.overallScore)}">${brand.overallScore}<span style="font-size:1rem;color:var(--text-muted)">/100</span></div>
+    <div class="card-subtitle">${subtitle} · "${brand.brandName}"</div>
+    ${brand.platforms.map(p => {
+      return `<div class="brand-platform">
+        <div>
+          <span style="margin-right:0.35rem">${platformIcons[p.platform] || '•'}</span>
+          <span style="font-weight:500;text-transform:capitalize">${p.platform}</span>
+          <span style="font-size:0.8rem;color:var(--text-muted);margin-left:0.5rem">${p.details}</span>
+        </div>
+        <span class="brand-status ${p.found ? 'brand-found' : 'brand-missing'}">${p.found ? `${p.score}/100` : (lang === 'lt' ? 'Nerasta' : 'Not found')}</span>
+      </div>`;
+    }).join('\n    ')}
+  </div>`;
+}
+
+function renderAnalysisSections(extras: ReportExtras | undefined, lang: string): string {
+  if (!extras) return '';
+  const { eeatScore, citabilityResult, platformResult, brandResult } = extras;
+  const hasContent = eeatScore || citabilityResult || platformResult || brandResult;
+  if (!hasContent) return '';
+
+  const title = lang === 'lt' ? 'Išplėstinė analizė' : 'Advanced Analysis';
+
+  return `
+  <h2>${title}</h2>
+  <div class="analysis-grid">
+    ${eeatScore ? renderEEATCard(eeatScore, lang) : ''}
+    ${citabilityResult ? renderCitabilityCard(citabilityResult, lang) : ''}
+    ${brandResult ? renderBrandCard(brandResult, lang) : ''}
+    ${platformResult ? renderPlatformCard(platformResult, lang) : ''}
+  </div>`;
 }
 
 function renderCategory(title: string, category: string, items: AuditItem[], lang: string): string {

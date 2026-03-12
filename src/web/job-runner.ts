@@ -119,7 +119,9 @@ export async function runScanJob(
       });
     }
 
-    files.push({ path: 'audit-report.html', content: generateAuditReportHtml(audit, crawlResult) });
+    files.push({ path: 'audit-report.html', content: generateAuditReportHtml(audit, crawlResult, {
+      eeatScore: audit.subScores.eeatScore,
+    }) });
     files.push({ path: 'summary.json', content: generateSummaryJson(audit, crawlResult) });
 
     const projected = generateProjectedAudit(audit);

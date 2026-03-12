@@ -57,7 +57,7 @@ const scanCmd = new Command('scan')
     }
   });
 
-program.addCommand(scanCmd);
+program.addCommand(scanCmd, { isDefault: true });
 
 // === CHECK command ===
 const checkCmd = new Command('check')
@@ -124,29 +124,8 @@ const webCmd = new Command('web')
 webCmd.option('-o, --output <dir>', 'Output / database directory', './geo-output');
 program.addCommand(webCmd);
 
-// === Default: if no subcommand, treat first arg as URL for scan ===
-program
-  .argument('[url]', 'Website URL (shorthand for scan)')
-  .option('-o, --output <dir>', 'Output directory', './geo-output')
-  .option('-m, --max-pages <n>', 'Maximum pages to crawl', '500')
-  .option('-c, --concurrency <n>', 'Concurrent requests', '3')
-  .option('--audit-only', 'Only audit existing GEO compliance, do not generate files', false)
-  .option('--allow-training', 'Allow AI training in generated policies (default)', true)
-  .option('--deny-training', 'Deny AI training in generated policies', false)
-  .option('--contact-email <email>', 'Contact email for security.txt and ai.txt')
-  .option('--brand-scan', 'Scan brand mentions on YouTube, Reddit, Wikipedia, LinkedIn', false)
-  .option('--pdf', 'Also generate PDF versions of reports', false)
-  .option('-v, --verbose', 'Verbose output', false)
-  .action(async (url: string | undefined, opts: Record<string, unknown>) => {
-    if (url) {
-      try {
-        await runScan(url, opts);
-      } catch (err) {
-        console.error(chalk.red(`\nFatal error: ${(err as Error).message}`));
-        process.exit(1);
-      }
-    }
-  });
+// No default command — use `scan` subcommand as default via Commander
+// Users can run either `geo-scraper scan <url>` or `geo-scraper <url>`
 
 program.parse();
 
@@ -303,7 +282,12 @@ async function runScan(rawUrl: string, opts: Record<string, unknown>): Promise<v
   }
 
   // Audit report
-  files.push({ path: 'audit-report.html', content: generateAuditReportHtml(audit, crawlResult) });
+  files.push({ path: 'audit-report.html', content: generateAuditReportHtml(audit, crawlResult, {
+    eeatScore: audit.subScores.eeatScore,
+    citabilityResult,
+    platformResult,
+    brandResult,
+  }) });
   files.push({ path: 'summary.json', content: generateSummaryJson(audit, crawlResult) });
 
   // Before/After comparison report
