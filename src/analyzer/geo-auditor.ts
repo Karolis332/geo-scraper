@@ -34,10 +34,10 @@ export interface AuditResult {
 }
 
 export const CATEGORY_WEIGHTS: Record<string, number> = {
-  ai_infrastructure: 3,
-  content_quality: 2.5,
+  ai_infrastructure: 1.5,
+  content_quality: 3,
   ai_discoverability: 2.5,
-  foundational_seo: 1.5,
+  foundational_seo: 2.5,
   non_scored: 0,
 };
 

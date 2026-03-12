@@ -22,7 +22,7 @@ export function extractBusinessContext(crawlResult: SiteCrawlResult): BusinessCo
   const description = buildDescription(pages);
   const keywords = extractKeywords(pages);
   const industry = inferIndustry(pages, keywords);
-  const location = siteIdentity.address || detectLocation(pages);
+  const location = siteIdentity.address || detectLocation(pages, domain);
   const { services, products } = extractServicesProducts(pages);
 
   return {
@@ -170,14 +170,184 @@ function extractJsonArray(text: string): string {
   return '[]';
 }
 
+/** Map detected location back to localized location string for queries */
+function getLocalizedLocation(location: string | null, lang: string): string {
+  if (!location) return '';
+  // For Lithuanian, use locative case
+  if (lang === 'lt') {
+    if (/lithuania/i.test(location)) return 'Lietuvoje';
+    if (/vilnius/i.test(location)) return 'Vilniuje';
+    if (/kaunas/i.test(location)) return 'Kaune';
+    if (/klaipeda|klaipėda/i.test(location)) return 'Klaipėdoje';
+    if (/šiauliai|siauliai/i.test(location)) return 'Šiauliuose';
+    if (/panevėžys|panevezys/i.test(location)) return 'Panevėžyje';
+  }
+  return location;
+}
+
 function generateTemplateQueries(context: BusinessContext, count: number): SearchQuery[] {
-  const queries: SearchQuery[] = [];
-  const loc = context.location || '';
   const lang = context.language || 'en';
+  const loc = context.location || '';
   const service0 = context.services[0] || context.industry;
   const service1 = context.services[1] || context.keywords[0] || context.industry;
 
-  // Brand queries (2) — CAN mention brand name
+  // For non-English sites, generate queries in native language + some English
+  if (lang === 'lt') {
+    return generateLithuanianTemplateQueries(context, count, loc, service0, service1);
+  }
+
+  // Default: English templates with location context
+  return generateEnglishTemplateQueries(context, count, loc, service0, service1);
+}
+
+function generateLithuanianTemplateQueries(
+  context: BusinessContext, count: number, loc: string, service0: string, service1: string,
+): SearchQuery[] {
+  const queries: SearchQuery[] = [];
+  const locStr = getLocalizedLocation(loc, 'lt') || 'Lietuvoje';
+
+  // Brand queries (2) — mixed language
+  queries.push({
+    query: `kas yra ${context.name} ir ar jie patikimi`,
+    category: 'brand',
+    intent: 'Brand reputation query (LT)',
+    language: 'lt',
+  });
+  queries.push({
+    query: `${context.name} atsiliepimai ir kainos`,
+    category: 'brand',
+    intent: 'Brand evaluation search (LT)',
+    language: 'lt',
+  });
+
+  // Generic FAQ queries (8) — mostly Lithuanian, some English
+  queries.push({
+    query: `kaip pasirinkti gerą ${service0} paslaugų teikėją ${locStr}`,
+    category: 'generic_faq',
+    intent: 'Industry FAQ: choosing provider (LT)',
+    language: 'lt',
+  });
+  queries.push({
+    query: `į ką atkreipti dėmesį renkantis ${service1}`,
+    category: 'generic_faq',
+    intent: 'Industry FAQ: buying guide (LT)',
+    language: 'lt',
+  });
+  queries.push({
+    query: `kiek kainuoja ${service0} ${locStr}`,
+    category: 'generic_faq',
+    intent: 'Industry FAQ: pricing (LT)',
+    language: 'lt',
+  });
+  queries.push({
+    query: `${context.industry} tendencijos ir naujienos Lietuvoje`,
+    category: 'generic_faq',
+    intent: 'Industry FAQ: trends (LT)',
+    language: 'lt',
+  });
+  queries.push({
+    query: `dažniausios klaidos renkantis ${context.industry} paslaugas`,
+    category: 'generic_faq',
+    intent: 'Industry FAQ: mistakes (LT)',
+    language: 'lt',
+  });
+  queries.push({
+    query: `kokia nauda naudotis profesionaliu ${service0}`,
+    category: 'generic_faq',
+    intent: 'Industry FAQ: benefits (LT)',
+    language: 'lt',
+  });
+  // English versions for international AI engines
+  queries.push({
+    query: `best ${context.industry} services in Lithuania`,
+    category: 'generic_faq',
+    intent: 'Industry FAQ: English for AI engines',
+    language: 'en',
+  });
+  queries.push({
+    query: `how does ${context.industry} work in Lithuania`,
+    category: 'generic_faq',
+    intent: 'Industry FAQ: English context',
+    language: 'en',
+  });
+
+  // Purchase intent queries (6)
+  queries.push({
+    query: `geriausios ${context.industry} įmonės ${locStr} palyginimas`,
+    category: 'purchase_intent',
+    intent: 'Purchase comparison (LT)',
+    language: 'lt',
+  });
+  queries.push({
+    query: `rekomenduokite patikimą ${service0} teikėją ${locStr}`,
+    category: 'purchase_intent',
+    intent: 'Purchase: recommendation (LT)',
+    language: 'lt',
+  });
+  queries.push({
+    query: `${service0} kainų palyginimas ${locStr}`,
+    category: 'purchase_intent',
+    intent: 'Purchase: price comparison (LT)',
+    language: 'lt',
+  });
+  queries.push({
+    query: `kur užsisakyti ${service0} ${locStr}`,
+    category: 'purchase_intent',
+    intent: 'Purchase: where to buy (LT)',
+    language: 'lt',
+  });
+  queries.push({
+    query: `top ${context.industry} companies in Lithuania comparison`,
+    category: 'purchase_intent',
+    intent: 'Purchase comparison (EN)',
+    language: 'en',
+  });
+  queries.push({
+    query: `${service0} vs ${service1} which is better`,
+    category: 'purchase_intent',
+    intent: 'Purchase: service comparison (EN)',
+    language: 'en',
+  });
+
+  // Page-specific queries (4)
+  if (context.keywords[0]) {
+    queries.push({
+      query: `${context.keywords[0]} pilnas vadovas ir patarimai`,
+      category: 'page_specific',
+      intent: 'Keyword content query (LT)',
+      language: 'lt',
+    });
+  }
+  if (context.keywords[1]) {
+    queries.push({
+      query: `viskas ką reikia žinoti apie ${context.keywords[1]}`,
+      category: 'page_specific',
+      intent: 'Keyword content query (LT)',
+      language: 'lt',
+    });
+  }
+  queries.push({
+    query: `${context.industry} ${locStr} išsamus aprašymas pradedantiesiems`,
+    category: 'page_specific',
+    intent: 'Educational content (LT)',
+    language: 'lt',
+  });
+  queries.push({
+    query: `${service0} žingsnis po žingsnio vadovas`,
+    category: 'page_specific',
+    intent: 'How-to content (LT)',
+    language: 'lt',
+  });
+
+  return queries.slice(0, count);
+}
+
+function generateEnglishTemplateQueries(
+  context: BusinessContext, count: number, loc: string, service0: string, service1: string,
+): SearchQuery[] {
+  const queries: SearchQuery[] = [];
+
+  // Brand queries (2)
   queries.push({
     query: `what does ${context.name} do and are they reputable`,
     category: 'brand',
@@ -191,7 +361,7 @@ function generateTemplateQueries(context: BusinessContext, count: number): Searc
     language: 'en',
   });
 
-  // Generic FAQ queries (8) — NO brand mention, industry-level
+  // Generic FAQ queries (8)
   queries.push({
     query: `how to choose a good ${service0} provider${loc ? ' in ' + loc : ''}`,
     category: 'generic_faq',
@@ -220,28 +390,28 @@ function generateTemplateQueries(context: BusinessContext, count: number): Searc
     query: `what are the benefits of professional ${service0}`,
     category: 'generic_faq',
     intent: 'Industry FAQ: benefits',
-    language: lang,
+    language: 'en',
   });
   queries.push({
     query: `common mistakes when choosing ${context.industry} services`,
     category: 'generic_faq',
     intent: 'Industry FAQ: mistakes to avoid',
-    language: lang,
+    language: 'en',
   });
   queries.push({
     query: `${context.industry} trends and innovations this year`,
     category: 'generic_faq',
     intent: 'Industry FAQ: trends',
-    language: lang,
+    language: 'en',
   });
   queries.push({
     query: `how long does ${service0} process usually take`,
     category: 'generic_faq',
     intent: 'Industry FAQ: timeline',
-    language: lang,
+    language: 'en',
   });
 
-  // Purchase intent queries (6) — NO brand mention, buying/comparison
+  // Purchase intent queries (6)
   queries.push({
     query: `best ${context.industry} companies${loc ? ' in ' + loc : ''} comparison`,
     category: 'purchase_intent',
@@ -258,19 +428,19 @@ function generateTemplateQueries(context: BusinessContext, count: number): Searc
     query: `${service0} price comparison${loc ? ' ' + loc : ''}`,
     category: 'purchase_intent',
     intent: 'Purchase: price comparison',
-    language: lang,
+    language: 'en',
   });
   queries.push({
     query: `recommend a reliable ${context.industry} company for ${service1}`,
     category: 'purchase_intent',
     intent: 'Purchase: recommendation',
-    language: lang,
+    language: 'en',
   });
   queries.push({
     query: `where to order custom ${service0}${loc ? ' in ' + loc : ''}`,
     category: 'purchase_intent',
     intent: 'Purchase: where to buy',
-    language: lang,
+    language: 'en',
   });
   queries.push({
     query: `${service0} vs ${service1} which is better for my needs`,
@@ -279,7 +449,7 @@ function generateTemplateQueries(context: BusinessContext, count: number): Searc
     language: 'en',
   });
 
-  // Page-specific queries (4) — based on content topics, no brand
+  // Page-specific queries (4)
   queries.push({
     query: `explain the pros and cons of different ${context.industry} approaches for someone just getting started`,
     category: 'page_specific',
@@ -297,7 +467,7 @@ function generateTemplateQueries(context: BusinessContext, count: number): Searc
       query: `${context.keywords[0]} complete guide and tips`,
       category: 'page_specific',
       intent: 'Keyword content query',
-      language: lang,
+      language: 'en',
     });
   }
   if (context.keywords[1]) {
@@ -305,7 +475,7 @@ function generateTemplateQueries(context: BusinessContext, count: number): Searc
       query: `everything you need to know about ${context.keywords[1]}`,
       category: 'page_specific',
       intent: 'Keyword content query',
-      language: lang,
+      language: 'en',
     });
   }
 
@@ -547,8 +717,54 @@ function inferIndustry(pages: SiteCrawlResult['pages'], keywords: string[]): str
   return 'general';
 }
 
-function detectLocation(pages: SiteCrawlResult['pages']): string | null {
-  // Check JSON-LD for address
+/** TLD → country mapping for auto-detecting operating region */
+const TLD_COUNTRY_MAP: Record<string, { en: string; native: string; code: string }> = {
+  lt: { en: 'Lithuania', native: 'Lietuva', code: 'lt' },
+  lv: { en: 'Latvia', native: 'Latvija', code: 'lv' },
+  ee: { en: 'Estonia', native: 'Eesti', code: 'et' },
+  pl: { en: 'Poland', native: 'Polska', code: 'pl' },
+  de: { en: 'Germany', native: 'Deutschland', code: 'de' },
+  fr: { en: 'France', native: 'France', code: 'fr' },
+  es: { en: 'Spain', native: 'España', code: 'es' },
+  it: { en: 'Italy', native: 'Italia', code: 'it' },
+  nl: { en: 'Netherlands', native: 'Nederland', code: 'nl' },
+  be: { en: 'Belgium', native: 'België', code: 'nl' },
+  at: { en: 'Austria', native: 'Österreich', code: 'de' },
+  ch: { en: 'Switzerland', native: 'Schweiz', code: 'de' },
+  cz: { en: 'Czech Republic', native: 'Česko', code: 'cs' },
+  sk: { en: 'Slovakia', native: 'Slovensko', code: 'sk' },
+  hu: { en: 'Hungary', native: 'Magyarország', code: 'hu' },
+  ro: { en: 'Romania', native: 'România', code: 'ro' },
+  bg: { en: 'Bulgaria', native: 'България', code: 'bg' },
+  hr: { en: 'Croatia', native: 'Hrvatska', code: 'hr' },
+  si: { en: 'Slovenia', native: 'Slovenija', code: 'sl' },
+  fi: { en: 'Finland', native: 'Suomi', code: 'fi' },
+  se: { en: 'Sweden', native: 'Sverige', code: 'sv' },
+  dk: { en: 'Denmark', native: 'Danmark', code: 'da' },
+  no: { en: 'Norway', native: 'Norge', code: 'no' },
+  pt: { en: 'Portugal', native: 'Portugal', code: 'pt' },
+  ie: { en: 'Ireland', native: 'Ireland', code: 'en' },
+  uk: { en: 'United Kingdom', native: 'United Kingdom', code: 'en' },
+  ua: { en: 'Ukraine', native: 'Україна', code: 'uk' },
+  ru: { en: 'Russia', native: 'Россия', code: 'ru' },
+  by: { en: 'Belarus', native: 'Беларусь', code: 'be' },
+  us: { en: 'United States', native: 'United States', code: 'en' },
+  ca: { en: 'Canada', native: 'Canada', code: 'en' },
+  au: { en: 'Australia', native: 'Australia', code: 'en' },
+  nz: { en: 'New Zealand', native: 'New Zealand', code: 'en' },
+  jp: { en: 'Japan', native: '日本', code: 'ja' },
+  kr: { en: 'South Korea', native: '한국', code: 'ko' },
+  cn: { en: 'China', native: '中国', code: 'zh' },
+  in: { en: 'India', native: 'India', code: 'en' },
+  br: { en: 'Brazil', native: 'Brasil', code: 'pt' },
+  mx: { en: 'Mexico', native: 'México', code: 'es' },
+  ar: { en: 'Argentina', native: 'Argentina', code: 'es' },
+  cl: { en: 'Chile', native: 'Chile', code: 'es' },
+  co: { en: 'Colombia', native: 'Colombia', code: 'es' },
+};
+
+function detectLocation(pages: SiteCrawlResult['pages'], domain?: string): string | null {
+  // 1. Check JSON-LD for address (most specific)
   for (const page of pages) {
     for (const ld of page.existingStructuredData.jsonLd) {
       const addr = ld.address as Record<string, unknown> | undefined;
@@ -559,7 +775,61 @@ function detectLocation(pages: SiteCrawlResult['pages']): string | null {
       }
     }
   }
+
+  // 2. Detect from domain TLD (e.g., .lt → Lithuania, .vz.lt → Lithuania)
+  if (domain) {
+    const tld = extractCountryTLD(domain);
+    if (tld && TLD_COUNTRY_MAP[tld]) {
+      return TLD_COUNTRY_MAP[tld].en;
+    }
+  }
+
+  // 3. Check hreflang tags for primary country
+  for (const page of pages) {
+    if (page.meta.hreflang.length > 0) {
+      // Find x-default or first hreflang with country code
+      for (const hl of page.meta.hreflang) {
+        // hreflang format: "lt", "lt-LT", "en-US"
+        const parts = hl.lang.split('-');
+        if (parts.length >= 2) {
+          const countryCode = parts[1].toLowerCase();
+          if (TLD_COUNTRY_MAP[countryCode]) {
+            return TLD_COUNTRY_MAP[countryCode].en;
+          }
+        }
+      }
+      // Fallback: use language code as country hint
+      const primaryLang = page.meta.hreflang[0].lang.split('-')[0].toLowerCase();
+      if (TLD_COUNTRY_MAP[primaryLang]) {
+        return TLD_COUNTRY_MAP[primaryLang].en;
+      }
+    }
+  }
+
+  // 4. Infer from content language
+  for (const page of pages) {
+    if (page.meta.language) {
+      const langCode = page.meta.language.split('-')[0].toLowerCase();
+      // Only map unambiguous language → country (lt → Lithuania, not en → any)
+      const unambiguous = new Set(['lt', 'lv', 'et', 'fi', 'hu', 'cz', 'sk', 'hr', 'si', 'bg', 'ro', 'ua', 'by', 'jp', 'kr']);
+      if (unambiguous.has(langCode) && TLD_COUNTRY_MAP[langCode]) {
+        return TLD_COUNTRY_MAP[langCode].en;
+      }
+    }
+  }
+
   return null;
+}
+
+/** Extract country-code TLD from domain, handling multi-level domains like .vz.lt, .co.uk */
+function extractCountryTLD(domain: string): string | null {
+  const parts = domain.split('.');
+  if (parts.length < 2) return null;
+  const tld = parts[parts.length - 1].toLowerCase();
+  // Skip generic TLDs
+  const genericTLDs = new Set(['com', 'org', 'net', 'io', 'dev', 'app', 'co', 'info', 'biz', 'xyz', 'ai', 'me']);
+  if (genericTLDs.has(tld)) return null;
+  return tld;
 }
 
 function extractServicesProducts(pages: SiteCrawlResult['pages']): {

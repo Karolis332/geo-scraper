@@ -196,7 +196,8 @@ export function generateClientReport(data: ClientReportData): string {
     if (eeatScore.signals.length > 0) {
       lines.push('**Detected Signals:**');
       for (const signal of eeatScore.signals.slice(0, 10)) {
-        lines.push(`- ${signal}`);
+        const icon = signal.found ? '+' : '-';
+        lines.push(`- [${icon}] ${signal.signal} (${signal.dimension}, ${signal.contribution}pts)`);
       }
       lines.push('');
     }
