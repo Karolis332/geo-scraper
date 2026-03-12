@@ -22,6 +22,9 @@ import { generateHumansTxt } from '../generators/humans-txt.js';
 import { generateManifestJson } from '../generators/manifest-json.js';
 import { generateAuditReportHtml, generateSummaryJson } from '../generators/audit-report.js';
 import { generateProjectedAudit, generateComparisonHtml } from '../generators/comparison-report.js';
+import { scoreSiteCitability } from '../analyzer/citability-scorer.js';
+import { analyzePlatformReadiness } from '../analyzer/platform-optimizer.js';
+import { scanBrandMentions } from '../analyzer/brand-scanner.js';
 
 import type { JobDatabase } from './database.js';
 import type {
@@ -75,10 +78,15 @@ export async function runScanJob(
     });
     emitProgress('crawl', `Crawled ${crawlResult.crawlStats.totalPages} pages`, 30);
 
-    // Stage 2: Audit
+    // Stage 2: Audit + advanced analysis
     emitProgress('audit', 'Auditing GEO compliance...', 35);
     const audit = auditSite(crawlResult);
     const geoServiceScore = calculateGeoServiceScore(audit.items);
+
+    emitProgress('audit', 'Running advanced analysis...', 40);
+    const brandResult = await scanBrandMentions(crawlResult.siteIdentity, crawlResult.domain);
+    const citabilityResult = scoreSiteCitability(crawlResult.pages);
+    const platformResult = analyzePlatformReadiness(audit, crawlResult, brandResult);
     emitProgress('audit', `Score: ${audit.overallScore}/100 (${audit.grade})`, 50);
 
     // Stage 3: Generate files
@@ -121,6 +129,9 @@ export async function runScanJob(
 
     files.push({ path: 'audit-report.html', content: generateAuditReportHtml(audit, crawlResult, {
       eeatScore: audit.subScores.eeatScore,
+      citabilityResult,
+      platformResult,
+      brandResult,
     }) });
     files.push({ path: 'summary.json', content: generateSummaryJson(audit, crawlResult) });
 
