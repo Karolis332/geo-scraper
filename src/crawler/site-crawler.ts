@@ -210,6 +210,16 @@ export async function crawlSite(
   log('Detecting temporary redirects...');
   const internalRedirectChecks = await detectInternalRedirects(deduplicatedPages, baseUrl, log);
 
+  // Probe compression support (got strips content-encoding after transparent decompression)
+  const compressionEncoding = await probeCompression(baseUrl);
+  if (compressionEncoding) {
+    for (const page of deduplicatedPages) {
+      if (!page.responseHeaders['content-encoding']) {
+        page.responseHeaders['content-encoding'] = compressionEncoding;
+      }
+    }
+  }
+
   // Merge site identity from all pages (homepage wins)
   const homepageHtml = deduplicatedPages.find(p => {
     const path = new URL(p.url).pathname;
@@ -507,6 +517,24 @@ async function fetchExistingGeoFiles(baseUrl: string): Promise<ExistingGeoFiles>
   );
 
   return result as unknown as ExistingGeoFiles;
+}
+
+/** HEAD-probe the base URL to detect server compression (got strips content-encoding after decompression) */
+async function probeCompression(baseUrl: string): Promise<string | null> {
+  try {
+    const response = await fetch(baseUrl, {
+      method: 'HEAD',
+      headers: {
+        'User-Agent': 'geo-scraper/1.0',
+        'Accept-Encoding': 'gzip, deflate, br',
+      },
+      signal: AbortSignal.timeout(5000),
+    });
+    const encoding = response.headers.get('content-encoding') || '';
+    return /gzip|br|deflate/i.test(encoding) ? encoding : null;
+  } catch {
+    return null;
+  }
 }
 
 function enrichSiteIdentity(identity: SiteIdentity, pages: PageData[]): void {
